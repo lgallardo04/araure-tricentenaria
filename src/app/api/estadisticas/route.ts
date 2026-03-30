@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
       '31-45': 0, '46-60': 0, '61+': 0, 'Sin dato': 0,
     };
 
-    function clasificarEdad(edad: number | null) {
+    const clasificarEdad = (edad: number | null) => {
       if (edad === null) { edadesPorRango['Sin dato']++; return; }
       if (edad <= 5) edadesPorRango['0-5']++;
       else if (edad <= 12) edadesPorRango['6-12']++;
