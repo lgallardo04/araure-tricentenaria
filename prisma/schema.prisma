@@ -1,0 +1,170 @@
+// =============================================================
+// Esquema de Base de Datos - Comuna Araure Tricentenaria
+// Sistema de Censo Comunal
+// Compatible con PostgreSQL (Supabase) y SQLite (desarrollo)
+// =============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---- Modelo de Usuario (Autenticación y Roles) ----
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String   // Hash bcrypt
+  role      String   @default("JEFE_CALLE") // "ADMIN" | "JEFE_COMUNIDAD" | "JEFE_CALLE"
+  phone     String?
+  cedula    String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relación: Un Jefe de Comunidad gestiona una comunidad
+  comunidadId    String?
+  comunidad      Comunidad?  @relation("JefeComunidadUsuario", fields: [comunidadId], references: [id], onDelete: SetNull)
+
+  // Relación: Un Jefe de Calle puede tener varias calles asignadas
+  callesAsignadas Calle[]
+
+  @@index([role])
+  @@index([comunidadId])
+  @@index([email])
+}
+
+// ---- Comunidad (Consejo Comunal) ----
+model Comunidad {
+  id             String   @id @default(cuid())
+  nombre         String
+  descripcion    String?
+  sector         String?  // Sector geográfico (norte, sur, centro, etc.)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relación: Jefes de comunidad asignados
+  jefesComunidad User[]   @relation("JefeComunidadUsuario")
+
+  // Relación: Una comunidad tiene muchas calles
+  calles Calle[]
+}
+
+// ---- Calle / Vereda / Sector ----
+model Calle {
+  id              String   @id @default(cuid())
+  nombre          String
+  avenida         String?
+  puntoReferencia String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relaciones
+  comunidadId String
+  comunidad   Comunidad @relation(fields: [comunidadId], references: [id], onDelete: Cascade)
+
+  jefeCalleId String?
+  jefeCalle   User?   @relation(fields: [jefeCalleId], references: [id], onDelete: SetNull)
+
+  familias Familia[]
+
+  @@index([comunidadId])
+  @@index([jefeCalleId])
+}
+
+// ---- Familia (Vivienda censada) ----
+model Familia {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // === DATOS DE LA VIVIENDA ===
+  direccion            String   // Dirección exacta de la vivienda
+  tipoVivienda         String   // Casa, Apartamento, Rancho, Quinta, Habitación, Otro
+  tenencia             String   // Propia, Alquilada, Prestada, Invadida, Herencia, Otro
+  materialConstruccion String?  // Bloque, Bahareque, Zinc, Madera, Mixto, Otro
+  cantidadHabitaciones Int?     // Número de habitaciones
+  cantidadBanos        Int?     // Número de baños
+  observaciones        String?
+
+  // === SERVICIOS BÁSICOS ===
+  servicioAgua          String?  // Tubería directa, Cisterna, Pozo, No tiene
+  servicioElectricidad  String?  // Sí, No, Irregular
+  servicioGas           String?  // Directo, Bombona, Leña, No tiene
+  servicioInternet      String?  // Sí, No
+  servicioAseo          String?  // Sí, No, Irregular
+  servicioTelefono      String?  // Fijo, Solo Celular, No tiene
+
+  // === PROGRAMAS SOCIALES ===
+  carnetPatria       Boolean @default(false)
+  codigoCarnetPatria String?
+  recibeClap         Boolean @default(false)
+  otrosBeneficios    String? // Otros programas sociales
+
+  // === SITUACIÓN ECONÓMICA ===
+  ingresoFamiliar   String?  // Rango: Menos de 1 salario mínimo, 1-2, 2-3, Más de 3
+
+  // === DATOS DEL JEFE DE FAMILIA ===
+  jfNombre       String   // Nombre completo del jefe de familia
+  jfCedula       String   // Cédula de identidad
+  jfNacionalidad String   @default("V") // V (Venezolano) / E (Extranjero)
+  jfFechaNac     String   // Fecha de nacimiento (obligatorio)
+  jfGenero       String   // M / F
+  jfEstadoCivil  String?  // Soltero/a, Casado/a, Concubino/a, Divorciado/a, Viudo/a
+  jfTelefono     String?
+  jfEmail        String?
+  jfEscolaridad  String?  // Ninguna, Primaria, Secundaria, Bachillerato, Técnico, Universitaria, Postgrado
+  jfOcupacion    String?
+  jfLugarTrabajo String?
+  jfPensionado   Boolean  @default(false)
+  jfDiscapacidad Boolean  @default(false)
+  jfTipoDiscapacidad String?
+  jfEnfermedad   String?  // Enfermedades crónicas
+  jfEmbarazada   Boolean  @default(false)
+  jfLactancia    Boolean  @default(false)
+
+  // Relaciones
+  calleId String
+  calle   Calle @relation(fields: [calleId], references: [id], onDelete: Cascade)
+
+  miembros Miembro[]
+
+  @@index([calleId])
+  @@index([jfCedula])
+  @@index([jfNombre])
+}
+
+// ---- Miembro de Familia ----
+model Miembro {
+  id               String   @id @default(cuid())
+  nombre           String   // Nombre completo
+  cedula           String?  // Cédula (puede no tener si es menor)
+  nacionalidad     String   @default("V") // V / E
+  fechaNacimiento  String   // Fecha de nacimiento (obligatorio)
+  genero           String   // M / F (obligatorio)
+  parentesco       String   // Hijo/a, Esposo/a, Abuelo/a, etc. (obligatorio)
+  estadoCivil      String?  // Soltero/a, Casado/a, etc.
+  escolaridad      String?  // Primaria, Secundaria, Universitaria, etc.
+  ocupacion        String?
+  lugarTrabajo     String?
+  salud            String?  // Enfermedades o condiciones crónicas
+  pensionado       Boolean  @default(false)
+  discapacidad     Boolean  @default(false)
+  tipoDiscapacidad String?
+  embarazada       Boolean  @default(false)
+  lactancia        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relación
+  familiaId String
+  familia   Familia @relation(fields: [familiaId], references: [id], onDelete: Cascade)
+
+  @@index([familiaId])
+  @@index([cedula])
+}
