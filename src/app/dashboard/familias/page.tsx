@@ -5,9 +5,12 @@
 
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { FiSearch, FiX, FiUsers, FiMapPin, FiTrash2, FiChevronDown, FiChevronUp, FiUser, FiHome } from 'react-icons/fi';
+import { useEffect, useState } from 'react';
+import useSWR from 'swr';
+import { useSession } from 'next-auth/react';
+import { FiSearch, FiX, FiUsers, FiMapPin, FiTrash2, FiChevronDown, FiChevronUp, FiUser, FiHome, FiDownload } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { apiFetch } from '@/lib/api';
 
 interface Miembro {
   id: string;
@@ -48,38 +51,38 @@ interface Familia {
 }
 
 export default function FamiliasPage() {
-  const [familias, setFamilias] = useState<Familia[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: session } = useSession();
+  const canExport = ['ADMIN', 'JEFE_COMUNIDAD'].includes(session?.user?.role ?? '');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  const fetchData = useCallback(() => {
-    setLoading(true);
-    const url = debouncedSearch
-      ? `/api/familias?search=${encodeURIComponent(debouncedSearch)}`
-      : '/api/familias';
-    fetch(url)
-      .then((r) => r.json())
-      .then(setFamilias)
-      .catch(() => toast.error('Error al cargar'))
-      .finally(() => setLoading(false));
-  }, [debouncedSearch]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const listKey = debouncedSearch
+    ? `/api/familias?search=${encodeURIComponent(debouncedSearch)}`
+    : '/api/familias';
+  const {
+    data: familias = [],
+    error,
+    isLoading: loading,
+    mutate,
+  } = useSWR<Familia[]>(listKey);
 
   const handleDelete = async (id: string, nombre: string) => {
     if (!confirm(`¿Eliminar la familia de "${nombre}"?`)) return;
     try {
-      await fetch(`/api/familias?id=${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/familias?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        toast.error((j as { error?: string }).error || 'Error al eliminar');
+        return;
+      }
       toast.success('Familia eliminada');
-      fetchData();
+      mutate();
     } catch {
       toast.error('Error al eliminar');
     }
@@ -87,9 +90,24 @@ export default function FamiliasPage() {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <div>
-        <h2 className="text-2xl font-bold text-white">Familias Censadas</h2>
-        <p className="text-slate-500 mt-1">{familias.length} familias registradas en el censo</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Familias Censadas</h2>
+          <p className="text-slate-500 mt-1">{familias.length} familias registradas en el censo</p>
+        </div>
+        {canExport && (
+          <a
+            href={
+              debouncedSearch
+                ? `/api/export/familias?search=${encodeURIComponent(debouncedSearch)}`
+                : '/api/export/familias'
+            }
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-sm font-medium transition-colors"
+          >
+            <FiDownload className="w-4 h-4" />
+            Exportar CSV
+          </a>
+        )}
       </div>
 
       {/* Búsqueda con debounce */}
@@ -109,6 +127,9 @@ export default function FamiliasPage() {
         )}
       </div>
 
+      {error && (
+        <p className="text-red-400 text-sm">Error al cargar. <button type="button" className="underline" onClick={() => mutate()}>Reintentar</button></p>
+      )}
       {loading ? (
         <div className="flex justify-center p-8">
           <div className="w-8 h-8 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />

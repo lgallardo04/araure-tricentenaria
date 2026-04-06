@@ -22,28 +22,41 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Email y contraseña son requeridos');
         }
 
-        // Buscar usuario en la base de datos
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email },
+          });
 
-        if (!user || !user.active) {
+          if (!user) {
+            throw new Error('Credenciales inválidas');
+          }
+
+          if (!user.active) {
+            throw new Error('Credenciales inválidas');
+          }
+
+          const isValid = await bcrypt.compare(credentials.password, user.password);
+          if (!isValid) {
+            throw new Error('Credenciales inválidas');
+          }
+
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            comunidadId: user.comunidadId,
+          };
+        } catch (error: unknown) {
+          if (error instanceof Error && error.message === 'Credenciales inválidas') {
+            throw error;
+          }
+          if (error instanceof Error && error.message === 'Email y contraseña son requeridos') {
+            throw error;
+          }
+          console.error('[AUTH]:', error);
           throw new Error('Credenciales inválidas');
         }
-
-        // Verificar contraseña
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) {
-          throw new Error('Credenciales inválidas');
-        }
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          comunidadId: user.comunidadId,
-        };
       },
     }),
   ],
@@ -51,18 +64,18 @@ export const authOptions: NextAuthOptions = {
     // Incluir el rol y comunidadId del usuario en el JWT
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as any).role;
+        token.role = user.role;
         token.id = user.id;
-        token.comunidadId = (user as any).comunidadId;
+        token.comunidadId = user.comunidadId ?? null;
       }
       return token;
     },
     // Incluir el rol y comunidadId del usuario en la sesión
     async session({ session, token }) {
-      if (session.user) {
-        (session.user as any).role = token.role;
-        (session.user as any).id = token.id;
-        (session.user as any).comunidadId = token.comunidadId;
+      if (session.user && token.id && token.role !== undefined) {
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.comunidadId = token.comunidadId ?? null;
       }
       return session;
     },
@@ -76,5 +89,6 @@ export const authOptions: NextAuthOptions = {
     maxAge: 24 * 60 * 60, // 24 horas
   },
   secret: process.env.NEXTAUTH_SECRET,
-  
+  // @ts-ignore
+  trustHost: true,
 };

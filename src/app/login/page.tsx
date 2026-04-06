@@ -126,15 +126,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Info de credenciales de prueba */}
-          <div className="mt-6 p-4 bg-slate-900/50 rounded-xl border border-slate-700/50">
-            <p className="text-xs text-slate-500 font-medium mb-2">Credenciales de prueba:</p>
-            <div className="space-y-1.5 text-xs text-slate-400">
-              <p><span className="text-red-400 font-medium">Admin:</span> admin@comuna.com / admin123</p>
-              <p><span className="text-purple-400 font-medium">Jefe Comunidad:</span> maria.gonzalez@comuna.com / jefe123</p>
-              <p><span className="text-blue-400 font-medium">Jefe de Calle:</span> juan.perez@comuna.com / jefe123</p>
-            </div>
-          </div>
+
         </div>
       </div>
     </div>

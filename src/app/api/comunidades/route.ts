@@ -8,18 +8,33 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { comunidadCreateSchema, comunidadUpdateSchema } from '@/lib/validations/calle-comunidad';
 
 // GET: Listar comunidades con calles y jefes
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    const role = (session?.user as any)?.role;
-    const comunidadId = (session?.user as any)?.comunidadId;
+    if (!session) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const role = session.user.role;
+    const comunidadId = session.user.comunidadId;
+    const userId = session.user.id;
 
     const where: any = {};
-    // Jefe de Comunidad solo ve su comunidad
     if (role === 'JEFE_COMUNIDAD' && comunidadId) {
       where.id = comunidadId;
+    } else if (role === 'JEFE_CALLE') {
+      const calles = await prisma.calle.findMany({
+        where: { jefeCalleId: userId },
+        select: { comunidadId: true },
+      });
+      const ids = Array.from(new Set(calles.map((c) => c.comunidadId)));
+      if (ids.length === 0) {
+        return NextResponse.json([]);
+      }
+      where.id = { in: ids };
     }
 
     const comunidades = await prisma.comunidad.findMany({
@@ -46,19 +61,22 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || (session.user as any).role !== 'ADMIN') {
+    if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    const body = await req.json();
-    const { nombre, descripcion, sector } = body;
-
-    if (!nombre) {
-      return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 });
+    const raw = await req.json();
+    const parsed = comunidadCreateSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Datos inválidos', details: parsed.error.flatten() },
+        { status: 400 }
+      );
     }
+    const { nombre, descripcion, sector } = parsed.data;
 
     const comunidad = await prisma.comunidad.create({
-      data: { nombre, descripcion, sector },
+      data: { nombre, descripcion: descripcion ?? undefined, sector: sector ?? undefined },
     });
 
     return NextResponse.json(comunidad, { status: 201 });
@@ -74,11 +92,18 @@ export async function PUT(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
-    const role = (session.user as any).role;
-    const userComunidadId = (session.user as any).comunidadId;
+    const role = session.user.role;
+    const userComunidadId = session.user.comunidadId;
 
-    const body = await req.json();
-    const { id, nombre, descripcion, sector } = body;
+    const raw = await req.json();
+    const parsed = comunidadUpdateSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Datos inválidos', details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { id, nombre, descripcion, sector } = parsed.data;
 
     // Jefe de Comunidad solo puede editar su propia comunidad
     if (role === 'JEFE_COMUNIDAD' && id !== userComunidadId) {
@@ -105,7 +130,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || (session.user as any).role !== 'ADMIN') {
+    if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 

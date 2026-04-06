@@ -5,9 +5,11 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
 import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, FiMapPin } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { apiFetch } from '@/lib/api';
 
 interface Calle {
   id: string;
@@ -23,48 +25,30 @@ interface Comunidad { id: string; nombre: string; }
 interface JefeCalle { id: string; name: string; email: string; }
 
 export default function CallesPage() {
-  const [calles, setCalles] = useState<Calle[]>([]);
-  const [comunidades, setComunidades] = useState<Comunidad[]>([]);
-  const [jefes, setJefes] = useState<JefeCalle[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: calles = [], isLoading: loadingCalles, mutate: mutateCalles } = useSWR<Calle[]>('/api/calles');
+  const { data: comunidades = [], isLoading: loadingComunidades } = useSWR<Comunidad[]>('/api/comunidades');
+  const { data: jefes = [], isLoading: loadingJefes } = useSWR<JefeCalle[]>('/api/users?role=JEFE_CALLE');
+  const loading = loadingCalles || loadingComunidades || loadingJefes;
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<Calle | null>(null);
   const [form, setForm] = useState({
     nombre: '', avenida: '', puntoReferencia: '', comunidadId: '', jefeCalleId: '',
   });
 
-  const fetchData = () => {
-    Promise.all([
-      fetch('/api/calles').then((r) => r.json()),
-      fetch('/api/comunidades').then((r) => r.json()),
-      fetch('/api/users?role=JEFE_CALLE').then((r) => r.json()),
-    ])
-      .then(([callesData, comData, jefesData]) => {
-        setCalles(callesData);
-        setComunidades(comData);
-        setJefes(jefesData);
-      })
-      .catch(() => toast.error('Error al cargar'))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchData(); }, []);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const method = editItem ? 'PUT' : 'POST';
       const body = editItem ? { id: editItem.id, ...form, jefeCalleId: form.jefeCalleId || null } : { ...form, jefeCalleId: form.jefeCalleId || null };
-      const res = await fetch('/api/calles', {
+      const res = await apiFetch('/api/calles', {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
       toast.success(editItem ? 'Calle actualizada' : 'Calle creada');
       setShowModal(false);
       setEditItem(null);
-      fetchData();
+      mutateCalles();
     } catch {
       toast.error('Error al guardar');
     }
@@ -73,9 +57,10 @@ export default function CallesPage() {
   const handleDelete = async (id: string, nombre: string) => {
     if (!confirm(`¿Eliminar "${nombre}"? Se eliminarán todos los datos de censo asociados.`)) return;
     try {
-      await fetch(`/api/calles?id=${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/calles?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
       toast.success('Calle eliminada');
-      fetchData();
+      mutateCalles();
     } catch {
       toast.error('Error al eliminar');
     }

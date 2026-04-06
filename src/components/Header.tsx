@@ -30,7 +30,7 @@ const roleColors: Record<string, string> = {
 export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
   const { data: session } = useSession();
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const role = (session?.user as any)?.role || 'JEFE_CALLE';
+  const role = session?.user?.role ?? 'JEFE_CALLE';
 
   return (
     <header className="sticky top-0 z-30 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800">

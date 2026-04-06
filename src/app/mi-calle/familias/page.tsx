@@ -6,10 +6,12 @@
 
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 import { useSession } from 'next-auth/react';
-import { FiSearch, FiX, FiUsers, FiUser, FiMapPin, FiChevronDown, FiChevronUp, FiTrash2, FiHome } from 'react-icons/fi';
+import { FiSearch, FiX, FiUsers, FiUser, FiMapPin, FiChevronDown, FiChevronUp, FiTrash2, FiHome, FiDownload } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { apiFetch } from '@/lib/api';
 
 interface Miembro {
   id: string;
@@ -42,60 +44,82 @@ interface Familia {
 }
 
 export default function MisFamiliasPage() {
-  const { data: session } = useSession();
-  const [familias, setFamilias] = useState<Familia[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: session, status: sessionStatus } = useSession();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  const fetchData = useCallback(async () => {
-    if (!session) return;
-    setLoading(true);
-    try {
-      const userId = (session.user as any).id;
-      // Fetch streets to get their IDs
-      const callesRes = await fetch(`/api/calles?jefeCalleId=${userId}`);
-      const calles = await callesRes.json();
+  const listKey =
+    session && sessionStatus === 'authenticated'
+      ? debouncedSearch
+        ? `/api/familias?search=${encodeURIComponent(debouncedSearch)}`
+        : '/api/familias'
+      : null;
 
-      // Fetch ALL families for all streets in parallel
-      const searchParam = debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : '';
-      const promises = calles.map((c: any) => fetch(`/api/familias?calleId=${c.id}${searchParam}`).then((r) => r.json()));
-      const results = await Promise.all(promises);
-      setFamilias(results.flat());
-    } catch {
-      toast.error('Error al cargar');
-    } finally {
-      setLoading(false);
-    }
-  }, [session, debouncedSearch]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const {
+    data: familias = [],
+    error,
+    isLoading: loading,
+    mutate,
+  } = useSWR<Familia[]>(listKey);
 
   const handleDelete = async (id: string, nombre: string) => {
     if (!confirm(`¿Eliminar la familia de "${nombre}"?`)) return;
     try {
-      await fetch(`/api/familias?id=${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/familias?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        toast.error((j as { error?: string }).error || 'Error al eliminar');
+        return;
+      }
       toast.success('Familia eliminada');
-      fetchData();
+      mutate();
     } catch {
       toast.error('Error al eliminar');
     }
   };
 
+  if (sessionStatus === 'loading') {
+    return (
+      <div className="flex justify-center p-12">
+        <div className="w-8 h-8 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5 animate-fade-in">
-      <div>
-        <h2 className="text-2xl font-bold text-white">Mis Familias Censadas</h2>
-        <p className="text-slate-500 mt-1">
-          {familias.length} familias registradas en tus calles
+      {error && (
+        <p className="text-red-400 text-sm">
+          Error al cargar.{' '}
+          <button type="button" className="underline" onClick={() => mutate()}>
+            Reintentar
+          </button>
         </p>
+      )}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Mis Familias Censadas</h2>
+          <p className="text-slate-500 mt-1">
+            {familias.length} familias registradas en tus calles
+          </p>
+        </div>
+        <a
+          href={
+            debouncedSearch
+              ? `/api/export/familias?search=${encodeURIComponent(debouncedSearch)}`
+              : '/api/export/familias'
+          }
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-sm font-medium transition-colors"
+        >
+          <FiDownload className="w-4 h-4" />
+          Exportar CSV
+        </a>
       </div>
 
       <div className="relative max-w-md">

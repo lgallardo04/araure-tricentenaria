@@ -5,7 +5,9 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { apiFetch } from '@/lib/api';
 import {
   FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, FiUser, FiUsers,
   FiMapPin, FiMap, FiShield, FiEye, FiEyeOff
@@ -28,9 +30,9 @@ interface User {
 interface Comunidad { id: string; nombre: string; }
 
 export default function GestionUsuariosPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [comunidades, setComunidades] = useState<Comunidad[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: users = [], isLoading: loadingUsers, mutate: mutateUsers } = useSWR<User[]>('/api/users');
+  const { data: comunidades = [], isLoading: loadingComunidades } = useSWR<Comunidad[]>('/api/comunidades');
+  const loading = loadingUsers || loadingComunidades;
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<User | null>(null);
   const [tab, setTab] = useState<'JEFE_COMUNIDAD' | 'JEFE_CALLE'>('JEFE_COMUNIDAD');
@@ -38,23 +40,6 @@ export default function GestionUsuariosPage() {
   const [form, setForm] = useState({
     name: '', email: '', password: '', phone: '', cedula: '', role: 'JEFE_COMUNIDAD', comunidadId: '',
   });
-
-  const fetchData = async () => {
-    try {
-      const [usersRes, comRes] = await Promise.all([
-        fetch('/api/users').then((r) => r.json()),
-        fetch('/api/comunidades').then((r) => r.json()),
-      ]);
-      setUsers(usersRes);
-      setComunidades(comRes);
-    } catch {
-      toast.error('Error al cargar datos');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchData(); }, []);
 
   const filteredUsers = users.filter((u) => u.role === tab);
 
@@ -66,9 +51,8 @@ export default function GestionUsuariosPage() {
         ? { id: editItem.id, ...form, password: form.password || undefined }
         : { ...form };
 
-      const res = await fetch('/api/users', {
+      const res = await apiFetch('/api/users', {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (!res.ok) {
@@ -78,7 +62,7 @@ export default function GestionUsuariosPage() {
       toast.success(editItem ? 'Usuario actualizado' : 'Usuario creado');
       setShowModal(false);
       setEditItem(null);
-      fetchData();
+      mutateUsers();
     } catch (err: any) {
       toast.error(err.message || 'Error al guardar');
     }
@@ -87,13 +71,13 @@ export default function GestionUsuariosPage() {
   const handleDelete = async (user: User) => {
     if (!confirm(`¿Eliminar a "${user.name}"? Esta acción no se puede deshacer.`)) return;
     try {
-      const res = await fetch(`/api/users?id=${user.id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/users?id=${user.id}`, { method: 'DELETE' });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error);
       }
       toast.success('Usuario eliminado');
-      fetchData();
+      mutateUsers();
     } catch (err: any) {
       toast.error(err.message || 'Error al eliminar');
     }
@@ -101,9 +85,8 @@ export default function GestionUsuariosPage() {
 
   const handleToggleActive = async (user: User) => {
     try {
-      const res = await fetch('/api/users', {
+      const res = await apiFetch('/api/users', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: user.id, active: !user.active }),
       });
       if (!res.ok) {
@@ -111,7 +94,7 @@ export default function GestionUsuariosPage() {
         throw new Error(err.error);
       }
       toast.success(user.active ? 'Usuario desactivado' : 'Usuario activado');
-      fetchData();
+      mutateUsers();
     } catch (err: any) {
       toast.error(err.message || 'Error');
     }

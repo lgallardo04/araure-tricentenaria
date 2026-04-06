@@ -8,24 +8,36 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { calleCreateSchema, calleUpdateSchema } from '@/lib/validations/calle-comunidad';
 
 // GET: Listar calles (con filtros opcionales)
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const comunidadId = searchParams.get('comunidadId');
     const jefeCalleId = searchParams.get('jefeCalleId');
 
     const where: any = {};
-    if (comunidadId) where.comunidadId = comunidadId;
-    if (jefeCalleId) where.jefeCalleId = jefeCalleId;
+    const role = session.user.role;
+    const userComunidadId = session.user.comunidadId;
+    const userId = session.user.id;
 
-    // Jefe de Comunidad solo ve calles de su comunidad
-    const role = (session?.user as any)?.role;
-    const userComunidadId = (session?.user as any)?.comunidadId;
-    if (role === 'JEFE_COMUNIDAD' && userComunidadId) {
-      where.comunidadId = userComunidadId;
+    if (role === 'JEFE_CALLE') {
+      where.jefeCalleId = userId;
+    } else {
+      if (comunidadId) where.comunidadId = comunidadId;
+      if (jefeCalleId) where.jefeCalleId = jefeCalleId;
+      if (role === 'JEFE_COMUNIDAD' && userComunidadId) {
+        if (comunidadId && comunidadId !== userComunidadId) {
+          return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+        }
+        where.comunidadId = userComunidadId;
+      }
     }
 
     const calles = await prisma.calle.findMany({
@@ -51,15 +63,18 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
-    const role = (session.user as any).role;
-    const userComunidadId = (session.user as any).comunidadId;
+    const role = session.user.role;
+    const userComunidadId = session.user.comunidadId;
 
-    const body = await req.json();
-    const { nombre, avenida, puntoReferencia, comunidadId, jefeCalleId } = body;
-
-    if (!nombre || !comunidadId) {
-      return NextResponse.json({ error: 'Nombre y comunidad son requeridos' }, { status: 400 });
+    const raw = await req.json();
+    const parsed = calleCreateSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Datos inválidos', details: parsed.error.flatten() },
+        { status: 400 }
+      );
     }
+    const { nombre, avenida, puntoReferencia, comunidadId, jefeCalleId } = parsed.data;
 
     // Jefe de Comunidad solo puede crear calles en su comunidad
     if (role === 'JEFE_COMUNIDAD' && comunidadId !== userComunidadId) {
@@ -87,11 +102,18 @@ export async function PUT(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
-    const role = (session.user as any).role;
-    const userComunidadId = (session.user as any).comunidadId;
+    const role = session.user.role;
+    const userComunidadId = session.user.comunidadId;
 
-    const body = await req.json();
-    const { id, nombre, avenida, puntoReferencia, comunidadId, jefeCalleId } = body;
+    const raw = await req.json();
+    const parsed = calleUpdateSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Datos inválidos', details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { id, nombre, avenida, puntoReferencia, comunidadId, jefeCalleId } = parsed.data;
 
     // Verificar acceso del Jefe de Comunidad
     if (role === 'JEFE_COMUNIDAD') {
@@ -121,7 +143,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || (session.user as any).role !== 'ADMIN') {
+    if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 

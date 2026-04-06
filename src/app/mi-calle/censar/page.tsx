@@ -14,6 +14,9 @@ import {
   FiZap, FiCheckCircle, FiAlertCircle, FiChevronLeft, FiChevronRight
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { apiFetch } from '@/lib/api';
+
+const CENSO_DRAFT_KEY = 'araure-censo-borrador-v1';
 
 interface Calle {
   id: string;
@@ -82,24 +85,84 @@ export default function CensarPage() {
   });
 
   const [miembros, setMiembros] = useState<Miembro[]>([]);
+  const [draftChecked, setDraftChecked] = useState(false);
 
   useEffect(() => {
-    if (!session) return;
-    const userId = (session.user as any).id;
-    const role = (session.user as any).role;
+    if (!session || draftChecked) return;
+    try {
+      const raw = sessionStorage.getItem(CENSO_DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw) as {
+          step?: number;
+          calleId?: string;
+          vivienda?: Record<string, string>;
+          servicios?: Record<string, string>;
+          programas?: Record<string, string | boolean>;
+          jefe?: Record<string, string | boolean>;
+          miembros?: Miembro[];
+        };
+        if (
+          window.confirm(
+            'Hay un borrador de censo sin enviar. ¿Desea continuar donde lo dejó?'
+          )
+        ) {
+          if (typeof d.step === 'number') setStep(d.step);
+          if (d.calleId !== undefined) setCalleId(d.calleId);
+          if (d.vivienda) setVivienda((prev) => ({ ...prev, ...d.vivienda }));
+          if (d.servicios) setServicios((prev) => ({ ...prev, ...d.servicios }));
+          if (d.programas) setProgramas((prev) => ({ ...prev, ...d.programas }));
+          if (d.jefe) setJefe((prev) => ({ ...prev, ...d.jefe }));
+          if (d.miembros?.length) setMiembros(d.miembros);
+        } else {
+          sessionStorage.removeItem(CENSO_DRAFT_KEY);
+        }
+      }
+    } catch {
+      sessionStorage.removeItem(CENSO_DRAFT_KEY);
+    }
+    setDraftChecked(true);
+  }, [session, draftChecked]);
+
+  useEffect(() => {
+    if (!session || !draftChecked) return;
+    const userId = session.user.id;
+    const role = session.user.role;
 
     const url = role === 'JEFE_CALLE'
       ? `/api/calles?jefeCalleId=${userId}`
       : '/api/calles';
 
-    fetch(url)
+    apiFetch(url)
       .then((r) => r.json())
-      .then((data) => {
+      .then((data: Calle[]) => {
         setCalles(data);
         if (data.length === 1 && !calleId) setCalleId(data[0].id);
       })
       .catch(console.error);
-  }, [session]);
+  }, [session, draftChecked, calleId]);
+
+  useEffect(() => {
+    if (!session || !draftChecked) return;
+    const t = setTimeout(() => {
+      try {
+        sessionStorage.setItem(
+          CENSO_DRAFT_KEY,
+          JSON.stringify({
+            step,
+            calleId,
+            vivienda,
+            servicios,
+            programas,
+            jefe,
+            miembros,
+          })
+        );
+      } catch {
+        /* almacenamiento lleno u offline */
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [session, draftChecked, step, calleId, vivienda, servicios, programas, jefe, miembros]);
 
   const addMiembro = () => setMiembros([...miembros, { ...miembroVacio }]);
   const removeMiembro = (i: number) => setMiembros(miembros.filter((_, idx) => idx !== i));
@@ -140,9 +203,8 @@ export default function CensarPage() {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/familias', {
+      const res = await apiFetch('/api/familias', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           calleId,
           ...vivienda,
@@ -158,8 +220,14 @@ export default function CensarPage() {
         throw new Error(err.error);
       }
 
+      try {
+        sessionStorage.removeItem(CENSO_DRAFT_KEY);
+      } catch {
+        /* ignore */
+      }
+
       toast.success('¡Familia censada exitosamente!');
-      const role = (session?.user as any)?.role;
+      const role = session?.user?.role;
       router.push(role === 'ADMIN' ? '/dashboard/familias' : '/mi-calle/familias');
     } catch (err: any) {
       toast.error(err.message || 'Error al guardar el censo');

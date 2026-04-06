@@ -3,7 +3,7 @@
 // Crea admin, jefes de comunidad, jefes de calle y datos de ejemplo
 // =============================================================
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -26,7 +26,7 @@ async function main() {
       name: 'Administrador Principal',
       email: 'admin@comuna.com',
       password: adminPassword,
-      role: 'ADMIN',
+      role: UserRole.ADMIN,
       phone: '0414-0000000',
       cedula: 'V-12345678',
     },
@@ -70,7 +70,7 @@ async function main() {
       data: {
         ...jefesComunidadData[i],
         password: jcPassword,
-        role: 'JEFE_COMUNIDAD',
+        role: UserRole.JEFE_COMUNIDAD,
         comunidadId: comunidades[i].id,
       },
     });
@@ -94,7 +94,7 @@ async function main() {
       data: {
         ...jData,
         password: jcallePassword,
-        role: 'JEFE_CALLE',
+        role: UserRole.JEFE_CALLE,
       },
     });
     jefesCalle.push(j);

@@ -9,6 +9,8 @@ import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // Función auxiliar para calcular edad a partir de fecha de nacimiento
 function calcularEdad(fechaNac: string | null): number | null {
   if (!fechaNac) return null;
@@ -41,11 +43,11 @@ export async function GET(req: NextRequest) {
       familiaWhere.calle = { comunidadId };
     }
 
-    const role = (session.user as any).role;
+    const role = session.user.role;
 
     // Si es Jefe de Comunidad, limitar a su comunidad
     if (role === 'JEFE_COMUNIDAD') {
-      const userComunidadId = (session.user as any).comunidadId;
+      const userComunidadId = session.user.comunidadId;
       if (userComunidadId) {
         familiaWhere.calle = { comunidadId: userComunidadId };
       }
@@ -54,7 +56,7 @@ export async function GET(req: NextRequest) {
     // Si es Jefe de Calle, limitar a sus calles asignadas
     if (role === 'JEFE_CALLE') {
       const callesAsignadas = await prisma.calle.findMany({
-        where: { jefeCalleId: (session.user as any).id },
+        where: { jefeCalleId: session.user.id },
         select: { id: true },
       });
       const calleIds = callesAsignadas.map((c) => c.id);
@@ -107,7 +109,7 @@ export async function GET(req: NextRequest) {
       else if (edad <= 45) edadesPorRango['31-45']++;
       else if (edad <= 60) edadesPorRango['46-60']++;
       else edadesPorRango['61+']++;
-    }
+    };
 
     for (const familia of familias) {
       // Contar jefe de familia
@@ -183,7 +185,7 @@ export async function GET(req: NextRequest) {
     // Obtener conteos estructurales
     const comunidadWhere: any = {};
     if (role === 'JEFE_COMUNIDAD') {
-      const userComunidadId = (session.user as any).comunidadId;
+      const userComunidadId = session.user.comunidadId;
       if (userComunidadId) comunidadWhere.id = userComunidadId;
     }
 
@@ -191,7 +193,7 @@ export async function GET(req: NextRequest) {
     const calleWhere: any = {};
     if (calleId) calleWhere.id = calleId;
     if (role === 'JEFE_COMUNIDAD') {
-      const userComunidadId = (session.user as any).comunidadId;
+      const userComunidadId = session.user.comunidadId;
       if (userComunidadId) calleWhere.comunidadId = userComunidadId;
     }
     const totalCalles = await prisma.calle.count({ where: calleWhere });

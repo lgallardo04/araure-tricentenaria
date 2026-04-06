@@ -8,7 +8,8 @@
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import useSWR from 'swr';
+import { useState } from 'react';
 import {
   FiHome, FiUsers, FiMap, FiMapPin, FiBarChart2,
   FiChevronDown, FiChevronRight, FiX, FiShield, FiClipboard, FiSettings
@@ -29,20 +30,13 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, onClose, onSelectComunidad }: SidebarProps) {
   const { data: session } = useSession();
   const pathname = usePathname();
-  const [comunidades, setComunidades] = useState<Comunidad[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const { data: comunidades = [] } = useSWR<Comunidad[]>('/api/comunidades');
 
-  const role = (session?.user as any)?.role;
+  const role = session?.user?.role;
   const isAdmin = role === 'ADMIN';
   const isJefeComunidad = role === 'JEFE_COMUNIDAD';
   const isJefeCalle = role === 'JEFE_CALLE';
-
-  useEffect(() => {
-    fetch('/api/comunidades')
-      .then((res) => res.json())
-      .then((data) => setComunidades(data))
-      .catch(console.error);
-  }, []);
 
   const toggleExpand = (id: string, nombre: string) => {
     setExpandedId(expandedId === id ? null : id);

@@ -5,7 +5,8 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
 import {
   Chart as ChartJS, ArcElement, Tooltip, Legend,
   CategoryScale, LinearScale, BarElement, Title, PointElement, LineElement
@@ -46,26 +47,23 @@ interface Stats {
 interface Comunidad { id: string; nombre: string; }
 
 export default function ReportesPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [comunidades, setComunidades] = useState<Comunidad[]>([]);
   const [filtro, setFiltro] = useState('');
-  const [loading, setLoading] = useState(true);
+  const { data: comunidades = [] } = useSWR<Comunidad[]>('/api/comunidades');
+  const statsKey = filtro ? `/api/estadisticas?comunidadId=${encodeURIComponent(filtro)}` : '/api/estadisticas';
+  const { data: stats, error, isLoading, mutate } = useSWR<Stats>(statsKey);
 
-  useEffect(() => {
-    fetch('/api/comunidades').then((r) => r.json()).then(setComunidades).catch(console.error);
-  }, []);
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-red-400 text-sm">No se pudieron cargar los reportes.</p>
+        <button type="button" onClick={() => mutate()} className="btn-primary px-4 py-2">
+          Reintentar
+        </button>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    setLoading(true);
-    const url = filtro ? `/api/estadisticas?comunidadId=${filtro}` : '/api/estadisticas';
-    fetch(url)
-      .then((r) => r.json())
-      .then(setStats)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [filtro]);
-
-  if (loading || !stats) {
+  if (isLoading || !stats) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />

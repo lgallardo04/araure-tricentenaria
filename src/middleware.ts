@@ -1,40 +1,35 @@
 // =============================================================
-// Middleware - Protección de Rutas
-// Controla acceso según roles: ADMIN, JEFE_COMUNIDAD, JEFE_CALLE
+// Middleware - Protección de Rutas + rate limit en login
 // =============================================================
 
 import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
+import type { NextFetchEvent, NextRequest } from 'next/server';
+import { rateLimitAuthRequest } from '@/lib/rate-limit-auth';
 
-export default withAuth(
+const authMiddleware = withAuth(
   function middleware(req) {
     const token = req.nextauth.token;
     const pathname = req.nextUrl.pathname;
 
-    // Si es admin, tiene acceso a todo
     if (token?.role === 'ADMIN') {
       return NextResponse.next();
     }
 
-    // Jefes de Comunidad: acceso al dashboard (excepto gestión de usuarios)
     if (token?.role === 'JEFE_COMUNIDAD') {
-      // Rutas restringidas solo para Admin
       const adminOnlyRoutes = ['/dashboard/jefes-calle'];
       if (adminOnlyRoutes.some((route) => pathname.startsWith(route))) {
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
-      // Permitir acceso al dashboard y sus subrutas
       if (pathname.startsWith('/dashboard')) {
         return NextResponse.next();
       }
-      // Permitir acceso a mi-calle también
       if (pathname.startsWith('/mi-calle')) {
         return NextResponse.next();
       }
       return NextResponse.next();
     }
 
-    // Jefes de Calle: solo acceso a /mi-calle
     if (token?.role === 'JEFE_CALLE') {
       const adminRoutes = ['/dashboard'];
       if (adminRoutes.some((route) => pathname.startsWith(route))) {
@@ -51,7 +46,23 @@ export default withAuth(
   }
 );
 
-// Proteger todas las rutas excepto login, api/auth y archivos estáticos
+export default async function middleware(req: NextRequest, event: NextFetchEvent) {
+  if (req.nextUrl.pathname.startsWith('/api/auth')) {
+    const { allowed } = await rateLimitAuthRequest(req);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Demasiados intentos de inicio de sesión. Intente más tarde.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': '900' },
+        }
+      );
+    }
+    return NextResponse.next();
+  }
+  return authMiddleware(req as never, event);
+}
+
 export const config = {
-  matcher: ['/dashboard/:path*', '/mi-calle/:path*'],
+  matcher: ['/dashboard/:path*', '/mi-calle/:path*', '/api/auth/:path*'],
 };

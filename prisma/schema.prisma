@@ -14,13 +14,19 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum UserRole {
+  ADMIN
+  JEFE_COMUNIDAD
+  JEFE_CALLE
+}
+
 // ---- Modelo de Usuario (Autenticación y Roles) ----
 model User {
   id        String   @id @default(cuid())
   name      String
   email     String   @unique
   password  String   // Hash bcrypt
-  role      String   @default("JEFE_CALLE") // "ADMIN" | "JEFE_COMUNIDAD" | "JEFE_CALLE"
+  role      UserRole @default(JEFE_CALLE)
   phone     String?
   cedula    String?
   active    Boolean  @default(true)

@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import {
@@ -47,21 +47,23 @@ interface Stats {
 
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: stats, error, isLoading, mutate } = useSWR<Stats>('/api/estadisticas');
 
-  const role = (session?.user as any)?.role;
+  const role = session?.user?.role;
   const isAdmin = role === 'ADMIN';
 
-  useEffect(() => {
-    fetch('/api/estadisticas')
-      .then((r) => r.json())
-      .then(setStats)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-red-400 text-sm">No se pudieron cargar las estadísticas.</p>
+        <button type="button" onClick={() => mutate()} className="btn-primary px-4 py-2">
+          Reintentar
+        </button>
+      </div>
+    );
+  }
 
-  if (loading || !stats) {
+  if (isLoading || !stats) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex flex-col items-center gap-3">

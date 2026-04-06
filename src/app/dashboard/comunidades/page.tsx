@@ -5,9 +5,11 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
 import { FiPlus, FiEdit2, FiTrash2, FiMap, FiX, FiMapPin } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { apiFetch } from '@/lib/api';
 
 interface Comunidad {
   id: string;
@@ -18,30 +20,18 @@ interface Comunidad {
 }
 
 export default function ComunidadesPage() {
-  const [comunidades, setComunidades] = useState<Comunidad[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: comunidades = [], isLoading: loading, mutate } = useSWR<Comunidad[]>('/api/comunidades');
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<Comunidad | null>(null);
   const [form, setForm] = useState({ nombre: '', jefeComunidad: '', descripcion: '' });
-
-  const fetchData = () => {
-    fetch('/api/comunidades')
-      .then((res) => res.json())
-      .then(setComunidades)
-      .catch(() => toast.error('Error al cargar'))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchData(); }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const method = editItem ? 'PUT' : 'POST';
       const body = editItem ? { id: editItem.id, ...form } : form;
-      const res = await fetch('/api/comunidades', {
+      const res = await apiFetch('/api/comunidades', {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
@@ -49,7 +39,7 @@ export default function ComunidadesPage() {
       setShowModal(false);
       setEditItem(null);
       setForm({ nombre: '', jefeComunidad: '', descripcion: '' });
-      fetchData();
+      mutate();
     } catch {
       toast.error('Error al guardar');
     }
@@ -58,9 +48,10 @@ export default function ComunidadesPage() {
   const handleDelete = async (id: string, nombre: string) => {
     if (!confirm(`¿Eliminar "${nombre}"? Se eliminarán también sus calles y datos de censo.`)) return;
     try {
-      await fetch(`/api/comunidades?id=${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/comunidades?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
       toast.success('Comunidad eliminada');
-      fetchData();
+      mutate();
     } catch {
       toast.error('Error al eliminar');
     }

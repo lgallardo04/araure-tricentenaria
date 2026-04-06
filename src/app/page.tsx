@@ -14,7 +14,7 @@ export default async function Home() {
   }
 
   // Redirigir según el rol del usuario
-  const role = (session.user as any).role;
+  const role = session.user.role;
 
   if (role === 'ADMIN' || role === 'JEFE_COMUNIDAD') {
     redirect('/dashboard');

@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { FiMapPin, FiUsers, FiClipboard, FiPlus, FiBarChart2, FiHome } from 'react-icons/fi';
@@ -19,28 +19,35 @@ interface CalleResumen {
 }
 
 export default function MiCallePage() {
-  const { data: session } = useSession();
-  const [calles, setCalles] = useState<CalleResumen[]>([]);
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: session, status: sessionStatus } = useSession();
+  const userId = session?.user?.id;
+  const { data: calles = [] } = useSWR<CalleResumen[]>(
+    userId ? `/api/calles?jefeCalleId=${userId}` : null
+  );
+  const { data: stats, error, isLoading, mutate } = useSWR<Record<string, number>>(
+    session ? '/api/estadisticas' : null
+  );
 
-  useEffect(() => {
-    if (!session) return;
-    const userId = (session.user as any).id;
+  if (sessionStatus === 'loading') {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
-    Promise.all([
-      fetch(`/api/calles?jefeCalleId=${userId}`).then((r) => r.json()),
-      fetch('/api/estadisticas').then((r) => r.json()),
-    ])
-      .then(([callesData, statsData]) => {
-        setCalles(callesData);
-        setStats(statsData);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [session]);
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-red-400 text-sm">Error al cargar el panel.</p>
+        <button type="button" onClick={() => mutate()} className="btn-primary px-4 py-2">
+          Reintentar
+        </button>
+      </div>
+    );
+  }
 
-  if (loading) {
+  if (isLoading || !stats) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex flex-col items-center gap-3">

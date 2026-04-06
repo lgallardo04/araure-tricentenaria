@@ -2,15 +2,26 @@
 // Layout Principal de la Aplicación
 // =============================================================
 
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import Providers from './providers';
 import { Toaster } from 'react-hot-toast';
 
 export const metadata: Metadata = {
-  title: 'Comuna Araure Tricentenaria - Sistema de Censo',
-  description: 'Sistema web de censo comunal para la Comuna Araure Tricentenaria. Gestión de comunidades, calles, familias y población.',
-  keywords: 'censo, comuna, araure, tricentenaria, comunidad, venezuela',
+  title: {
+    default: 'Comuna Araure Tricentenaria - Sistema de Censo',
+    template: '%s · Araure Tricentenaria',
+  },
+  description:
+    'Sistema web de censo comunal para la Comuna Araure Tricentenaria. Gestión de comunidades, calles, familias y población.',
+  keywords: ['censo', 'comuna', 'araure', 'tricentenaria', 'consejo comunal', 'venezuela'],
+  robots: { index: false, follow: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#020617',
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

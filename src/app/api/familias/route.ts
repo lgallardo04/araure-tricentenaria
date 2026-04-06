@@ -6,36 +6,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
+import type { Session } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { familiaCreateSchema, familiaUpdateSchema } from '@/lib/validations/familia';
+import { buildFamiliaListWhere } from '@/lib/familia-list-scope';
+
+async function assertFamiliaAccess(session: Session, familiaId: string) {
+  const familia = await prisma.familia.findUnique({
+    where: { id: familiaId },
+    include: { calle: { select: { id: true, comunidadId: true, jefeCalleId: true } } },
+  });
+  if (!familia) {
+    return NextResponse.json({ error: 'Familia no encontrada' }, { status: 404 });
+  }
+  const role = session.user.role;
+  const userId = session.user.id;
+  const userComunidadId = session.user.comunidadId;
+  if (role === 'ADMIN') return null;
+  if (role === 'JEFE_COMUNIDAD') {
+    if (!userComunidadId || familia.calle.comunidadId !== userComunidadId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+    return null;
+  }
+  if (role === 'JEFE_CALLE') {
+    if (familia.calle.jefeCalleId !== userId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+    return null;
+  }
+  return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+}
 
 // GET: Listar familias (con filtros)
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
-    const calleId = searchParams.get('calleId');
-    const comunidadId = searchParams.get('comunidadId');
-    const search = searchParams.get('search');
-
-    const where: any = {};
-    if (calleId) where.calleId = calleId;
-    if (comunidadId) where.calle = { comunidadId };
-
-    // Jefe de Comunidad solo ve familias de su comunidad
-    const role = (session?.user as any)?.role;
-    const userComunidadId = (session?.user as any)?.comunidadId;
-    if (role === 'JEFE_COMUNIDAD' && userComunidadId && !calleId) {
-      where.calle = { comunidadId: userComunidadId };
-    }
-
-    // Búsqueda por nombre o cédula del jefe de familia
-    if (search) {
-      where.OR = [
-        { jfNombre: { contains: search, mode: 'insensitive' } },
-        { jfCedula: { contains: search, mode: 'insensitive' } },
-        { direccion: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+    const { where, error } = await buildFamiliaListWhere(session, {
+      calleId: searchParams.get('calleId'),
+      comunidadId: searchParams.get('comunidadId'),
+      search: searchParams.get('search'),
+    });
+    if (error) return error;
 
     const familias = await prisma.familia.findMany({
       where,
@@ -67,7 +84,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    const body = await req.json();
+    const raw = await req.json();
+    const parsed = familiaCreateSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Datos inválidos', details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const body = parsed.data;
     const {
       calleId, direccion, tipoVivienda, tenencia, materialConstruccion,
       cantidadHabitaciones, cantidadBanos, observaciones,
@@ -82,30 +107,11 @@ export async function POST(req: NextRequest) {
       miembros,
     } = body;
 
-    // Validaciones de campos obligatorios
-    const errores: string[] = [];
-    if (!calleId) errores.push('Calle');
-    if (!direccion) errores.push('Dirección');
-    if (!tipoVivienda) errores.push('Tipo de vivienda');
-    if (!tenencia) errores.push('Tenencia');
-    if (!jfNombre) errores.push('Nombre del jefe de familia');
-    if (!jfCedula) errores.push('Cédula del jefe de familia');
-    if (!jfFechaNac) errores.push('Fecha de nacimiento del jefe');
-    if (!jfGenero) errores.push('Género del jefe de familia');
-    if (!jfNacionalidad) errores.push('Nacionalidad del jefe');
-
-    if (errores.length > 0) {
-      return NextResponse.json(
-        { error: `Campos obligatorios faltantes: ${errores.join(', ')}` },
-        { status: 400 }
-      );
-    }
-
     // Verificar acceso: Jefes de Calle solo pueden censar en sus calles asignadas
-    const role = (session.user as any).role;
+    const role = session.user.role;
     if (role === 'JEFE_CALLE') {
       const calle = await prisma.calle.findUnique({ where: { id: calleId } });
-      if (!calle || calle.jefeCalleId !== (session.user as any).id) {
+      if (!calle || calle.jefeCalleId !== session.user.id) {
         return NextResponse.json({ error: 'No tiene acceso a esta calle' }, { status: 403 });
       }
     }
@@ -113,7 +119,7 @@ export async function POST(req: NextRequest) {
     // Jefe de Comunidad solo puede censar en calles de su comunidad
     if (role === 'JEFE_COMUNIDAD') {
       const calle = await prisma.calle.findUnique({ where: { id: calleId } });
-      if (!calle || calle.comunidadId !== (session.user as any).comunidadId) {
+      if (!calle || calle.comunidadId !== session.user.comunidadId) {
         return NextResponse.json({ error: 'No tiene acceso a esta calle' }, { status: 403 });
       }
     }
@@ -122,8 +128,10 @@ export async function POST(req: NextRequest) {
     const familia = await prisma.familia.create({
       data: {
         calleId, direccion, tipoVivienda, tenencia, materialConstruccion,
-        cantidadHabitaciones: cantidadHabitaciones ? parseInt(cantidadHabitaciones) : null,
-        cantidadBanos: cantidadBanos ? parseInt(cantidadBanos) : null,
+        cantidadHabitaciones: cantidadHabitaciones
+          ? parseInt(String(cantidadHabitaciones), 10)
+          : null,
+        cantidadBanos: cantidadBanos ? parseInt(String(cantidadBanos), 10) : null,
         observaciones,
         servicioAgua, servicioElectricidad, servicioGas, servicioInternet,
         servicioAseo, servicioTelefono,
@@ -180,21 +188,36 @@ export async function PUT(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
-    const body = await req.json();
+    const raw = await req.json();
+    const parsed = familiaUpdateSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Datos inválidos', details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const body = parsed.data;
     const { id, miembros, cantidadHabitaciones, cantidadBanos, ...familiaData } = body;
 
     // Parse numbers
     if (cantidadHabitaciones !== undefined) {
-      familiaData.cantidadHabitaciones = cantidadHabitaciones ? parseInt(cantidadHabitaciones) : null;
+      (familiaData as Record<string, unknown>).cantidadHabitaciones = cantidadHabitaciones
+        ? parseInt(String(cantidadHabitaciones), 10)
+        : null;
     }
     if (cantidadBanos !== undefined) {
-      familiaData.cantidadBanos = cantidadBanos ? parseInt(cantidadBanos) : null;
+      (familiaData as Record<string, unknown>).cantidadBanos = cantidadBanos
+        ? parseInt(String(cantidadBanos), 10)
+        : null;
     }
+
+    const denied = await assertFamiliaAccess(session, id);
+    if (denied) return denied;
 
     // Actualizar datos de la familia
     const familia = await prisma.familia.update({
       where: { id },
-      data: familiaData,
+      data: familiaData as Parameters<typeof prisma.familia.update>[0]['data'],
     });
 
     // Si se enviaron miembros, reemplazar todos
@@ -241,6 +264,9 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+
+    const denied = await assertFamiliaAccess(session, id);
+    if (denied) return denied;
 
     await prisma.familia.delete({ where: { id } });
     return NextResponse.json({ message: 'Familia eliminada' });

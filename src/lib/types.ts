@@ -4,26 +4,25 @@
 
 import { DefaultSession } from 'next-auth';
 
-// Extender tipos de NextAuth para incluir role, id y comunidadId
 declare module 'next-auth' {
+  interface User {
+    role: string;
+    comunidadId: string | null;
+  }
+
   interface Session {
     user: {
       id: string;
       role: string;
-      comunidadId?: string | null;
+      comunidadId: string | null;
     } & DefaultSession['user'];
-  }
-
-  interface User {
-    role: string;
-    comunidadId?: string | null;
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
-    role: string;
-    id: string;
+    id?: string;
+    role?: string;
     comunidadId?: string | null;
   }
 }
