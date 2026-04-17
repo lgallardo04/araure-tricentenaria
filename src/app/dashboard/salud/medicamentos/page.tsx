@@ -50,7 +50,6 @@ export default function MedicamentosPage() {
       unidad: m.unidad || '',
       descripcion: m.descripcion || '',
     });
-    });
     setEditId(m.id);
     setErrors({});
     setShowForm(true);
