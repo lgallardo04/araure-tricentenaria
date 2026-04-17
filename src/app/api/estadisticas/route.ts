@@ -1,7 +1,8 @@
 // =============================================================
 // API: Estadísticas
 // Genera datos estadísticos expandidos para dashboard y reportes
-// Incluye servicios, programas sociales, embarazo/lactancia
+// Incluye demografía detallada: Niños, Niñas, Abuelos, Abuelas
+// Filtros jerárquicos: Comuna > Comunidad > Calle
 // =============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
     const calleId = searchParams.get('calleId');
     const comunidadId = searchParams.get('comunidadId');
 
-    // Construir filtro
+    // Construir filtro — ahora soporta calleId + comunidadId combinados
     const familiaWhere: any = {};
     if (calleId) {
       familiaWhere.calleId = calleId;
@@ -49,7 +50,9 @@ export async function GET(req: NextRequest) {
     if (role === 'JEFE_COMUNIDAD') {
       const userComunidadId = session.user.comunidadId;
       if (userComunidadId) {
-        familiaWhere.calle = { comunidadId: userComunidadId };
+        if (!calleId) {
+          familiaWhere.calle = { comunidadId: userComunidadId };
+        }
       }
     }
 
@@ -60,16 +63,42 @@ export async function GET(req: NextRequest) {
         select: { id: true },
       });
       const calleIds = callesAsignadas.map((c) => c.id);
-      familiaWhere.calleId = { in: calleIds };
+      familiaWhere.calleId = calleId ? calleId : { in: calleIds };
     }
 
-    // Obtener todas las familias con sus miembros
+    // Obtener las familias con solo los campos necesarios para estadísticas
     const familias = await prisma.familia.findMany({
       where: familiaWhere,
-      include: { miembros: true },
+      select: {
+        jfFechaNac: true,
+        jfGenero: true,
+        jfPensionado: true,
+        jfDiscapacidad: true,
+        jfEmbarazada: true,
+        jfLactancia: true,
+        carnetPatria: true,
+        recibeClap: true,
+        tipoVivienda: true,
+        tenencia: true,
+        servicioAgua: true,
+        servicioElectricidad: true,
+        servicioGas: true,
+        servicioInternet: true,
+        servicioAseo: true,
+        miembros: {
+          select: {
+            fechaNacimiento: true,
+            genero: true,
+            pensionado: true,
+            discapacidad: true,
+            embarazada: true,
+            lactancia: true,
+          },
+        },
+      },
     });
 
-    // Contadores
+    // === Contadores base ===
     let totalMiembros = 0;
     let totalMayores = 0;
     let totalMenores = 0;
@@ -81,6 +110,15 @@ export async function GET(req: NextRequest) {
     let totalLactancia = 0;
     let totalCarnetPatria = 0;
     let totalClap = 0;
+
+    // === Contadores demográficos detallados ===
+    let totalNinos = 0;       // Género M, edad < 12
+    let totalNinas = 0;       // Género F, edad < 12
+    let totalAdolescentes = 0; // Edad 12-17
+    let totalAdultos = 0;     // Edad 18-59
+    let totalAbuelosHombres = 0; // Género M, edad >= 60
+    let totalAbuelasMujeres = 0; // Género F, edad >= 60
+    let totalTerceraEdad = 0;    // Edad >= 60
 
     // Servicios
     const servicios = {
@@ -111,6 +149,23 @@ export async function GET(req: NextRequest) {
       else edadesPorRango['61+']++;
     };
 
+    // Función para clasificar demográficamente
+    const clasificarDemografia = (edad: number | null, genero: string | null) => {
+      if (edad === null) return;
+      if (edad < 12) {
+        if (genero === 'M') totalNinos++;
+        else if (genero === 'F') totalNinas++;
+      } else if (edad < 18) {
+        totalAdolescentes++;
+      } else if (edad < 60) {
+        totalAdultos++;
+      } else {
+        totalTerceraEdad++;
+        if (genero === 'M') totalAbuelosHombres++;
+        else if (genero === 'F') totalAbuelasMujeres++;
+      }
+    };
+
     for (const familia of familias) {
       // Contar jefe de familia
       totalMiembros++;
@@ -119,6 +174,7 @@ export async function GET(req: NextRequest) {
         if (edadJefe >= 18) totalMayores++; else totalMenores++;
       }
       clasificarEdad(edadJefe);
+      clasificarDemografia(edadJefe, familia.jfGenero);
       if (familia.jfGenero === 'M') totalHombres++;
       else if (familia.jfGenero === 'F') totalMujeres++;
       if (familia.jfPensionado) totalPensionados++;
@@ -173,6 +229,7 @@ export async function GET(req: NextRequest) {
           if (edad >= 18) totalMayores++; else totalMenores++;
         }
         clasificarEdad(edad);
+        clasificarDemografia(edad, miembro.genero);
         if (miembro.genero === 'M') totalHombres++;
         else if (miembro.genero === 'F') totalMujeres++;
         if (miembro.pensionado) totalPensionados++;
@@ -231,6 +288,15 @@ export async function GET(req: NextRequest) {
       totalClap,
       totalComunidades,
       totalCalles,
+      // Nuevos campos demográficos
+      totalNinos,
+      totalNinas,
+      totalAdolescentes,
+      totalAdultos,
+      totalAbuelosHombres,
+      totalAbuelasMujeres,
+      totalTerceraEdad,
+      // Charts
       edadesPorRango,
       poblacionPorComunidad,
       servicios,

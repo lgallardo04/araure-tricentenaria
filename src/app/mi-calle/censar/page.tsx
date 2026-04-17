@@ -86,6 +86,15 @@ export default function CensarPage() {
 
   const [miembros, setMiembros] = useState<Miembro[]>([]);
   const [draftChecked, setDraftChecked] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const clearError = (field: string) => {
+    if (errors[field]) {
+      const next = { ...errors };
+      delete next[field];
+      setErrors(next);
+    }
+  };
 
   useEffect(() => {
     if (!session || draftChecked) return;
@@ -196,7 +205,7 @@ export default function CensarPage() {
   const prevStep = () => setStep(step - 1);
 
   const handleSubmit = async () => {
-    if (!validateStep(1) || !validateStep(2)) {
+    if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
       toast.error('Revise los campos obligatorios');
       return;
     }
@@ -296,8 +305,8 @@ export default function CensarPage() {
 
       {/* Selección de calle */}
       <div className="glass-card p-4 sm:p-5">
-        <Req>Calle / Sector</Req>
-        <select value={calleId} onChange={(e) => setCalleId(e.target.value)} className="select-field" required>
+        <Req error={errors.calleId}>Calle / Sector</Req>
+        <select value={calleId} onChange={(e) => { setCalleId(e.target.value); clearError('calleId'); }} className={`select-field ${errors.calleId ? 'border-red-500 bg-red-900/20 shadow-inner shadow-red-500/20' : ''}`} required>
           <option value="">Seleccionar calle...</option>
           {calles.map((c) => (
             <option key={c.id} value={c.id}>
@@ -316,22 +325,22 @@ export default function CensarPage() {
           </h3>
 
           <div>
-            <Req>Dirección Exacta</Req>
+            <Req error={errors.direccion}>Dirección Exacta</Req>
             <input value={vivienda.direccion} onChange={(e) => setVivienda({ ...vivienda, direccion: e.target.value })}
               className="input-field" placeholder="Ej: Casa #15, Calle Principal, frente a la bodega" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Req>Tipo de Vivienda</Req>
-              <select value={vivienda.tipoVivienda} onChange={(e) => setVivienda({ ...vivienda, tipoVivienda: e.target.value })} className="select-field">
+              <Req error={errors.tipoVivienda}>Tipo de Vivienda</Req>
+              <select value={vivienda.tipoVivienda} onChange={(e) => { setVivienda({ ...vivienda, tipoVivienda: e.target.value }); clearError('tipoVivienda'); }} className={`select-field ${errors.tipoVivienda ? 'border-red-500 bg-red-900/20' : ''}`}>
                 <option value="">Seleccionar...</option>
                 {tiposVivienda.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <Req>Tenencia</Req>
-              <select value={vivienda.tenencia} onChange={(e) => setVivienda({ ...vivienda, tenencia: e.target.value })} className="select-field">
+              <Req error={errors.tenencia}>Tenencia</Req>
+              <select value={vivienda.tenencia} onChange={(e) => { setVivienda({ ...vivienda, tenencia: e.target.value }); clearError('tenencia'); }} className={`select-field ${errors.tenencia ? 'border-red-500 bg-red-900/20' : ''}`}>
                 <option value="">Seleccionar...</option>
                 {tiposTenencia.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
@@ -384,12 +393,12 @@ export default function CensarPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Req>Nombre Completo</Req>
+              <Req error={errors.jfNombre}>Nombre Completo</Req>
               <input value={jefe.jfNombre} onChange={(e) => setJefe({ ...jefe, jfNombre: e.target.value })}
                 className="input-field" placeholder="Nombre y apellido" />
             </div>
             <div>
-              <Req>Cédula de Identidad</Req>
+              <Req error={errors.jfCedula}>Cédula de Identidad</Req>
               <div className="flex gap-2">
                 <select value={jefe.jfNacionalidad} onChange={(e) => setJefe({ ...jefe, jfNacionalidad: e.target.value })}
                   className="select-field w-20 flex-shrink-0">
@@ -404,12 +413,12 @@ export default function CensarPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <Req>Fecha de Nacimiento</Req>
-              <input type="date" value={jefe.jfFechaNac} onChange={(e) => setJefe({ ...jefe, jfFechaNac: e.target.value })} className="input-field" />
+              <Req error={errors.jfFechaNac}>Fecha de Nacimiento</Req>
+              <input type="date" value={jefe.jfFechaNac} onChange={(e) => { setJefe({ ...jefe, jfFechaNac: e.target.value }); clearError('jfFechaNac'); }} className={`input-field ${errors.jfFechaNac ? 'border-red-500 bg-red-900/20' : ''}`} />
             </div>
             <div>
-              <Req>Género</Req>
-              <select value={jefe.jfGenero} onChange={(e) => setJefe({ ...jefe, jfGenero: e.target.value })} className="select-field">
+              <Req error={errors.jfGenero}>Género</Req>
+              <select value={jefe.jfGenero} onChange={(e) => { setJefe({ ...jefe, jfGenero: e.target.value }); clearError('jfGenero'); }} className={`select-field ${errors.jfGenero ? 'border-red-500 bg-red-900/20' : ''}`}>
                 <option value="">Seleccionar...</option>
                 <option value="M">Masculino</option>
                 <option value="F">Femenino</option>
@@ -545,7 +554,7 @@ export default function CensarPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       <div>
                         <Req>Nombre Completo</Req>
-                        <input value={m.nombre} onChange={(e) => updateMiembro(i, 'nombre', e.target.value)} className="input-field text-sm py-2" placeholder="Nombre y apellido" />
+                        <input value={m.nombre} onChange={(e) => { updateMiembro(i, 'nombre', e.target.value); clearError(`miembro_${i}_nombre`); }} className={`input-field text-sm py-2 ${errors[`miembro_${i}_nombre`] ? 'border-red-500 bg-red-900/20' : ''}`} placeholder="Nombre y apellido" />
                       </div>
                       <div>
                         <Opt>Cédula</Opt>
@@ -559,11 +568,11 @@ export default function CensarPage() {
                       </div>
                       <div>
                         <Req>Fecha de Nacimiento</Req>
-                        <input type="date" value={m.fechaNacimiento} onChange={(e) => updateMiembro(i, 'fechaNacimiento', e.target.value)} className="input-field text-sm py-2" />
+                        <input type="date" value={m.fechaNacimiento} onChange={(e) => { updateMiembro(i, 'fechaNacimiento', e.target.value); clearError(`miembro_${i}_fechaNacimiento`); }} className={`input-field text-sm py-2 ${errors[`miembro_${i}_fechaNacimiento`] ? 'border-red-500 bg-red-900/20' : ''}`} />
                       </div>
                       <div>
                         <Req>Género</Req>
-                        <select value={m.genero} onChange={(e) => updateMiembro(i, 'genero', e.target.value)} className="select-field text-sm py-2">
+                        <select value={m.genero} onChange={(e) => { updateMiembro(i, 'genero', e.target.value); clearError(`miembro_${i}_genero`); }} className={`select-field text-sm py-2 ${errors[`miembro_${i}_genero`] ? 'border-red-500 bg-red-900/20' : ''}`}>
                           <option value="">Seleccionar...</option>
                           <option value="M">Masculino</option>
                           <option value="F">Femenino</option>
@@ -571,7 +580,7 @@ export default function CensarPage() {
                       </div>
                       <div>
                         <Req>Parentesco</Req>
-                        <select value={m.parentesco} onChange={(e) => updateMiembro(i, 'parentesco', e.target.value)} className="select-field text-sm py-2">
+                        <select value={m.parentesco} onChange={(e) => { updateMiembro(i, 'parentesco', e.target.value); clearError(`miembro_${i}_parentesco`); }} className={`select-field text-sm py-2 ${errors[`miembro_${i}_parentesco`] ? 'border-red-500 bg-red-900/20' : ''}`}>
                           <option value="">Seleccionar...</option>
                           {parentescos.map((p) => <option key={p} value={p}>{p}</option>)}
                         </select>

@@ -67,44 +67,41 @@ export default function LoginPage() {
         <div className="glass-card p-8">
           <h2 className="text-xl font-semibold text-white mb-6 text-center">Iniciar Sesión</h2>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm text-center">
-              {error}
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="input-label">
-                Correo Electrónico
-              </label>
+              <div className="flex justify-between items-end">
+                <label htmlFor="email" className="input-label mb-1">
+                  Correo Electrónico <span className="text-red-400">*</span>
+                </label>
+                {error && <span className="text-red-400 text-[11px] font-semibold animate-pulse mb-1">{error}</span>}
+              </div>
               <div className="relative">
-                <FiMail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
+                <FiMail className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${error ? 'text-red-400' : 'text-slate-500'}`} />
                 <input
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setError(''); }}
                   placeholder="correo@ejemplo.com"
-                  className="input-field pl-12"
+                  className={`input-field pl-12 ${error ? 'border-red-500 bg-red-900/20 shadow-inner shadow-red-500/20' : ''}`}
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="password" className="input-label">
-                Contraseña
+              <label htmlFor="password" className="input-label mb-1">
+                Contraseña <span className="text-red-400">*</span>
               </label>
               <div className="relative">
-                <FiLock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
+                <FiLock className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${error ? 'text-red-400' : 'text-slate-500'}`} />
                 <input
                   id="password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
                   placeholder="••••••••"
-                  className="input-field pl-12"
+                  className={`input-field pl-12 ${error ? 'border-red-500 bg-red-900/20 shadow-inner shadow-red-500/20' : ''}`}
                   required
                 />
               </div>
@@ -113,7 +110,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full btn-primary flex items-center justify-center gap-2 py-3"
+              className="w-full btn-primary flex items-center justify-center gap-2 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

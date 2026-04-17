@@ -23,6 +23,7 @@ export default function ComunidadesPage() {
   const { data: comunidades = [], isLoading: loading, mutate } = useSWR<Comunidad[]>('/api/comunidades');
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<Comunidad | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState({ nombre: '', jefeComunidad: '', descripcion: '' });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,14 +35,22 @@ export default function ComunidadesPage() {
         method,
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json();
+        if (err.details?.fieldErrors) {
+           setErrors({nombre: 'Nombre requerido'}); 
+           return;
+        }
+        throw new Error();
+      }
       toast.success(editItem ? 'Comunidad actualizada' : 'Comunidad creada');
       setShowModal(false);
       setEditItem(null);
+      setErrors({});
       setForm({ nombre: '', jefeComunidad: '', descripcion: '' });
       mutate();
     } catch {
-      toast.error('Error al guardar');
+      toast.error('Error al guardar la comunidad. Por favor revise el formato.');
     }
   };
 
@@ -59,6 +68,7 @@ export default function ComunidadesPage() {
 
   const openEdit = (item: Comunidad) => {
     setEditItem(item);
+    setErrors({});
     setForm({ nombre: item.nombre, jefeComunidad: item.jefeComunidad || '', descripcion: item.descripcion || '' });
     setShowModal(true);
   };
@@ -70,7 +80,7 @@ export default function ComunidadesPage() {
           <h2 className="text-2xl font-bold text-white">Comunidades</h2>
           <p className="text-slate-500 mt-1">Gestiona los Consejos Comunales</p>
         </div>
-        <button onClick={() => { setEditItem(null); setForm({ nombre: '', jefeComunidad: '', descripcion: '' }); setShowModal(true); }} className="btn-primary flex items-center gap-2">
+        <button onClick={() => { setEditItem(null); setErrors({}); setForm({ nombre: '', jefeComunidad: '', descripcion: '' }); setShowModal(true); }} className="btn-primary flex items-center gap-2">
           <FiPlus className="w-5 h-5" />
           Nueva Comunidad
         </button>
@@ -82,9 +92,16 @@ export default function ComunidadesPage() {
           <div className="w-8 h-8 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
         </div>
       ) : comunidades.length === 0 ? (
-        <div className="text-center py-12 text-slate-500 glass-card">
-          <FiMap className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p>No hay comunidades registradas</p>
+        <div className="text-center py-16 px-4 text-slate-400 glass-card mx-auto max-w-2xl mt-8">
+          <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700/50">
+            <FiMap className="w-8 h-8 text-slate-500" />
+          </div>
+          <h3 className="text-xl font-semibold text-white mb-2">Configure su Primera Comunidad</h3>
+          <p className="max-w-sm mx-auto mb-6">Aún no hay Consejos Comunales registrados. Para empezar a organizar los censos, cree una ahora.</p>
+          <button onClick={() => { setEditItem(null); setErrors({}); setForm({ nombre: '', jefeComunidad: '', descripcion: '' }); setShowModal(true); }} className="btn-primary inline-flex items-center gap-2">
+            <FiPlus className="w-5 h-5" />
+            Haz clic aquí para crearla
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -147,20 +164,24 @@ export default function ComunidadesPage() {
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="input-label">Nombre de la Comunidad *</label>
-                <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="input-field" placeholder="Ej: Consejo Comunal Barrio Unión" required />
+                <div className="flex justify-between items-end">
+                  <label className="input-label mb-1">Nombre de la Comunidad <span className="text-red-400">*</span></label>
+                  {errors.nombre && <span className="text-red-400 text-[11px] font-semibold animate-pulse mb-1">{errors.nombre}</span>}
+                </div>
+                <input value={form.nombre} onChange={(e) => { setForm({ ...form, nombre: e.target.value }); setErrors({}); }} 
+                  className={`input-field ${errors.nombre ? 'border-red-500 bg-red-900/20' : ''}`} placeholder="Ej: Consejo Comunal Barrio Unión" />
               </div>
               <div>
-                <label className="input-label">Jefe de Comunidad</label>
-                <input value={form.jefeComunidad} onChange={(e) => setForm({ ...form, jefeComunidad: e.target.value })} className="input-field" placeholder="Nombre del jefe de comunidad" />
+                <label className="input-label mb-1">Jefe de Comunidad</label>
+                <input value={form.jefeComunidad} onChange={(e) => setForm({ ...form, jefeComunidad: e.target.value })} className="input-field" placeholder="Nombre completo (Opcional)" />
               </div>
               <div>
-                <label className="input-label">Descripción</label>
-                <textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} className="input-field" rows={3} placeholder="Descripción breve de la comunidad" />
+                <label className="input-label mb-1">Descripción</label>
+                <textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} className="input-field max-h-32" rows={3} placeholder="Detalles de la comunidad (Opcional)" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="submit" className="btn-primary flex-1">
-                  {editItem ? 'Guardar' : 'Crear Comunidad'}
+                <button type="submit" disabled={loading} className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {loading ? 'Guardando...' : (editItem ? 'Guardar Cambios' : 'Crear Comunidad')}
                 </button>
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
               </div>

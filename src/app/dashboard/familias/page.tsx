@@ -135,9 +135,12 @@ export default function FamiliasPage() {
           <div className="w-8 h-8 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
         </div>
       ) : familias.length === 0 ? (
-        <div className="text-center py-12 text-slate-500 glass-card">
-          <FiUsers className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p>No se encontraron familias</p>
+        <div className="text-center py-16 px-4 text-slate-400 glass-card mx-auto mt-8">
+          <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700/50">
+            <FiUsers className="w-8 h-8 text-blue-500" />
+          </div>
+          <h3 className="text-xl font-semibold text-white mb-2">No se encontraron familias</h3>
+          <p className="max-w-md mx-auto mb-6">Aún no hay censos registrados en la plataforma o los filtros no coinciden. Avisele a los Jefes de Calle que comiencen a registrar datos desde el menú "Censar".</p>
         </div>
       ) : (
         <div className="space-y-3">

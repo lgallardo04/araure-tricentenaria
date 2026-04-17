@@ -59,4 +59,37 @@ export interface EstadisticasGenerales {
   totalLactancia: number;
   totalCarnetPatria: number;
   totalClap: number;
+  // Demografía detallada
+  totalNinos: number;
+  totalNinas: number;
+  totalAdolescentes: number;
+  totalAdultos: number;
+  totalAbuelosHombres: number;
+  totalAbuelasMujeres: number;
+  totalTerceraEdad: number;
+}
+
+export interface DemografiaConteo {
+  ninos: number;
+  ninas: number;
+  adolescentesM: number;
+  adolescentesF: number;
+  adultosM: number;
+  adultosF: number;
+  abuelosHombres: number;
+  abuelasMujeres: number;
+  total: number;
+}
+
+export interface DemografiaPorZona {
+  id: string;
+  nombre: string;
+  conteo: DemografiaConteo;
+}
+
+export interface DemografiaResponse {
+  global: DemografiaConteo;
+  porComunidad: DemografiaPorZona[];
+  porCalle: (DemografiaPorZona & { comunidadNombre: string; comunidadId: string })[];
+  piramide: Record<string, { hombres: number; mujeres: number }>;
 }

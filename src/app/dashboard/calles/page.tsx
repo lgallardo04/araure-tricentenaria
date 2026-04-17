@@ -31,6 +31,7 @@ export default function CallesPage() {
   const loading = loadingCalles || loadingComunidades || loadingJefes;
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<Calle | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     nombre: '', avenida: '', puntoReferencia: '', comunidadId: '', jefeCalleId: '',
   });
@@ -44,13 +45,24 @@ export default function CallesPage() {
         method,
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json();
+        if (err.details?.fieldErrors) {
+          const validationErrors: Record<string, string> = {};
+          for (const [k, v] of Object.entries(err.details.fieldErrors)) validationErrors[k] = (v as string[])[0];
+          setErrors(validationErrors);
+          toast.error('Revise los campos requeridos marcados en rojo');
+          return;
+        }
+        throw new Error();
+      }
       toast.success(editItem ? 'Calle actualizada' : 'Calle creada');
       setShowModal(false);
       setEditItem(null);
+      setErrors({});
       mutateCalles();
     } catch {
-      toast.error('Error al guardar');
+      toast.error('Error al guardar datos. Revise la información.');
     }
   };
 
@@ -75,6 +87,7 @@ export default function CallesPage() {
       comunidadId: item.comunidad.id,
       jefeCalleId: item.jefeCalle?.id || '',
     });
+    setErrors({});
     setShowModal(true);
   };
 
@@ -88,6 +101,7 @@ export default function CallesPage() {
         <button
           onClick={() => {
             setEditItem(null);
+            setErrors({});
             setForm({ nombre: '', avenida: '', puntoReferencia: '', comunidadId: comunidades[0]?.id || '', jefeCalleId: '' });
             setShowModal(true);
           }}
@@ -103,6 +117,18 @@ export default function CallesPage() {
         {loading ? (
           <div className="flex justify-center p-8">
             <div className="w-8 h-8 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+          </div>
+        ) : calles.length === 0 ? (
+          <div className="text-center py-16 px-4 text-slate-400 mx-auto max-w-2xl">
+            <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700/50">
+              <FiMapPin className="w-8 h-8 text-blue-500" />
+            </div>
+            <h3 className="text-xl font-semibold text-white mb-2">Configure su Primera Calle</h3>
+            <p className="max-w-sm mx-auto mb-6">Esta vista organizará las rutas de la comunidad. Añada su primera calle para luego censar familias allí.</p>
+            <button onClick={() => { setEditItem(null); setErrors({}); setForm({ nombre: '', avenida: '', puntoReferencia: '', comunidadId: comunidades[0]?.id || '', jefeCalleId: '' }); setShowModal(true); }} className="btn-primary inline-flex items-center gap-2">
+              <FiPlus className="w-5 h-5" />
+              Pulse aquí para registrar una
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -168,20 +194,28 @@ export default function CallesPage() {
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="input-label">Nombre de la Calle *</label>
-                <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="input-field" placeholder="Ej: Calle Principal" required />
+                <div className="flex justify-between items-end">
+                  <label className="input-label mb-1">Nombre de la Calle <span className="text-red-400">*</span></label>
+                  {errors.nombre && <span className="text-red-400 text-[11px] font-semibold animate-pulse mb-1">{errors.nombre}</span>}
+                </div>
+                <input value={form.nombre} onChange={(e) => { setForm({ ...form, nombre: e.target.value }); setErrors({...errors, nombre: ''}); }} 
+                  className={`input-field ${errors.nombre ? 'border-red-500 bg-red-900/20' : ''}`} placeholder="Ej: Calle Principal" />
               </div>
               <div>
-                <label className="input-label">Avenida</label>
-                <input value={form.avenida} onChange={(e) => setForm({ ...form, avenida: e.target.value })} className="input-field" placeholder="Av. Bolívar" />
+                <label className="input-label mb-1">Avenida</label>
+                <input value={form.avenida} onChange={(e) => setForm({ ...form, avenida: e.target.value })} className="input-field" placeholder="Av. Bolívar (Opcional)" />
               </div>
               <div>
-                <label className="input-label">Punto de Referencia</label>
-                <input value={form.puntoReferencia} onChange={(e) => setForm({ ...form, puntoReferencia: e.target.value })} className="input-field" placeholder="Cerca de la plaza" />
+                <label className="input-label mb-1">Punto de Referencia</label>
+                <input value={form.puntoReferencia} onChange={(e) => setForm({ ...form, puntoReferencia: e.target.value })} className="input-field" placeholder="Cerca de la plaza (Opcional)" />
               </div>
               <div>
-                <label className="input-label">Comunidad *</label>
-                <select value={form.comunidadId} onChange={(e) => setForm({ ...form, comunidadId: e.target.value })} className="select-field" required>
+                <div className="flex justify-between items-end">
+                  <label className="input-label mb-1">Comunidad <span className="text-red-400">*</span></label>
+                  {errors.comunidadId && <span className="text-red-400 text-[11px] font-semibold animate-pulse mb-1">{errors.comunidadId}</span>}
+                </div>
+                <select value={form.comunidadId} onChange={(e) => { setForm({ ...form, comunidadId: e.target.value }); setErrors({...errors, comunidadId: ''}); }} 
+                  className={`select-field ${errors.comunidadId ? 'border-red-500 bg-red-900/20' : ''}`}>
                   <option value="">Seleccionar comunidad</option>
                   {comunidades.map((c) => (
                     <option key={c.id} value={c.id}>{c.nombre}</option>
@@ -189,16 +223,18 @@ export default function CallesPage() {
                 </select>
               </div>
               <div>
-                <label className="input-label">Jefe de Calle</label>
+                <label className="input-label mb-1">Jefe de Calle Asignado</label>
                 <select value={form.jefeCalleId} onChange={(e) => setForm({ ...form, jefeCalleId: e.target.value })} className="select-field">
-                  <option value="">Sin asignar</option>
+                  <option value="">Sin asignar (Opcional)</option>
                   {jefes.map((j) => (
                     <option key={j.id} value={j.id}>{j.name} ({j.email})</option>
                   ))}
                 </select>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="submit" className="btn-primary flex-1">{editItem ? 'Guardar' : 'Crear Calle'}</button>
+                <button type="submit" disabled={loading} className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {loading ? 'Guardando...' : (editItem ? 'Guardar Cambios' : 'Crear Calle')}
+                </button>
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
               </div>
             </form>

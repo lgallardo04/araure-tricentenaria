@@ -1,6 +1,7 @@
 // =============================================================
 // Componente Sidebar
 // Navegación lateral con menús según rol (3 niveles)
+// Incluye enlace a Demografía para Admin y Jefe de Comunidad
 // =============================================================
 
 'use client';
@@ -12,7 +13,7 @@ import useSWR from 'swr';
 import { useState } from 'react';
 import {
   FiHome, FiUsers, FiMap, FiMapPin, FiBarChart2,
-  FiChevronDown, FiChevronRight, FiX, FiShield, FiClipboard, FiSettings
+  FiChevronDown, FiChevronRight, FiX, FiShield, FiClipboard, FiSettings, FiActivity, FiCheckSquare
 } from 'react-icons/fi';
 
 interface Comunidad {
@@ -35,6 +36,11 @@ export default function Sidebar({ isOpen, onClose, onSelectComunidad }: SidebarP
 
   const role = session?.user?.role;
   const isAdmin = role === 'ADMIN';
+
+  // Obtener alertas de reportes para Admin
+  const { data: countData } = useSWR<{count: number}>(isAdmin ? '/api/familias/aprobacion/count' : null);
+  const pendingCount = countData?.count || 0;
+
   const isJefeComunidad = role === 'JEFE_COMUNIDAD';
   const isJefeCalle = role === 'JEFE_CALLE';
 
@@ -123,6 +129,24 @@ export default function Sidebar({ isOpen, onClose, onSelectComunidad }: SidebarP
                 <FiClipboard className="w-5 h-5" /><span>Familias Censadas</span>
               </Link>
 
+              <Link href="/dashboard/demografia" className={`sidebar-link ${isActive('/dashboard/demografia') ? 'active' : ''}`} onClick={onClose}>
+                <FiUsers className="w-5 h-5" /><span>Demografía</span>
+              </Link>
+
+              <Link href="/dashboard/salud" className={`sidebar-link ${isActive('/dashboard/salud') || pathname?.startsWith('/dashboard/salud') ? 'active' : ''}`} onClick={onClose}>
+                <FiActivity className="w-5 h-5" /><span>Salud</span>
+              </Link>
+              
+              <Link href="/dashboard/aprobaciones" className={`sidebar-link ${isActive('/dashboard/aprobaciones') ? 'active' : ''}`} onClick={onClose}>
+                <FiCheckSquare className="w-5 h-5 text-emerald-400" />
+                <span className="flex-1">Aprobaciones</span>
+                {pendingCount > 0 && (
+                  <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {pendingCount}
+                  </span>
+                )}
+              </Link>
+
               <Link href="/dashboard/reportes" className={`sidebar-link ${isActive('/dashboard/reportes') ? 'active' : ''}`} onClick={onClose}>
                 <FiBarChart2 className="w-5 h-5" /><span>Reportes</span>
               </Link>
@@ -150,6 +174,14 @@ export default function Sidebar({ isOpen, onClose, onSelectComunidad }: SidebarP
 
               <Link href="/dashboard/familias" className={`sidebar-link ${isActive('/dashboard/familias') ? 'active' : ''}`} onClick={onClose}>
                 <FiClipboard className="w-5 h-5" /><span>Familias Censadas</span>
+              </Link>
+
+              <Link href="/dashboard/demografia" className={`sidebar-link ${isActive('/dashboard/demografia') ? 'active' : ''}`} onClick={onClose}>
+                <FiUsers className="w-5 h-5" /><span>Demografía</span>
+              </Link>
+
+              <Link href="/dashboard/salud" className={`sidebar-link ${isActive('/dashboard/salud') || pathname?.startsWith('/dashboard/salud') ? 'active' : ''}`} onClick={onClose}>
+                <FiActivity className="w-5 h-5" /><span>Salud</span>
               </Link>
 
               <Link href="/dashboard/reportes" className={`sidebar-link ${isActive('/dashboard/reportes') ? 'active' : ''}`} onClick={onClose}>

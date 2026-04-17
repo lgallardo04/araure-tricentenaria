@@ -37,6 +37,7 @@ export default function GestionUsuariosPage() {
   const [editItem, setEditItem] = useState<User | null>(null);
   const [tab, setTab] = useState<'JEFE_COMUNIDAD' | 'JEFE_CALLE'>('JEFE_COMUNIDAD');
   const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     name: '', email: '', password: '', phone: '', cedula: '', role: 'JEFE_COMUNIDAD', comunidadId: '',
   });
@@ -47,9 +48,16 @@ export default function GestionUsuariosPage() {
     e.preventDefault();
     try {
       const method = editItem ? 'PUT' : 'POST';
+      
+      // Limpiar campos vacíos para evitar errores de validación de Zod
+      const submitData: any = { ...form };
+      if (!submitData.comunidadId || submitData.role === 'JEFE_CALLE') {
+        delete submitData.comunidadId;
+      }
+
       const body = editItem
-        ? { id: editItem.id, ...form, password: form.password || undefined }
-        : { ...form };
+        ? { id: editItem.id, ...submitData, password: submitData.password || undefined }
+        : { ...submitData };
 
       const res = await apiFetch('/api/users', {
         method,
@@ -57,7 +65,16 @@ export default function GestionUsuariosPage() {
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error);
+        if (err.details && err.details.fieldErrors) {
+          const validationErrors: Record<string, string> = {};
+          for (const [k, v] of Object.entries(err.details.fieldErrors)) {
+            validationErrors[k] = (v as string[])[0];
+          }
+          setErrors(validationErrors);
+          toast.error('Corrige los campos remarcados en rojo');
+          return;
+        }
+        throw new Error(err.error || 'Error desconocido');
       }
       toast.success(editItem ? 'Usuario actualizado' : 'Usuario creado');
       setShowModal(false);
@@ -102,6 +119,7 @@ export default function GestionUsuariosPage() {
 
   const openCreate = () => {
     setEditItem(null);
+    setErrors({});
     setForm({ name: '', email: '', password: '', phone: '', cedula: '', role: tab, comunidadId: '' });
     setShowPassword(false);
     setShowModal(true);
@@ -118,6 +136,7 @@ export default function GestionUsuariosPage() {
       role: user.role,
       comunidadId: user.comunidadId || '',
     });
+    setErrors({});
     setShowPassword(false);
     setShowModal(true);
   };
@@ -230,23 +249,32 @@ export default function GestionUsuariosPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="input-label">Nombre Completo *</label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="input-field" placeholder="Nombre y apellido" required />
+                <div className="flex justify-between items-end">
+                  <label className="input-label mb-1">Nombre Completo <span className="text-red-400">*</span></label>
+                  {errors.name && <span className="text-red-400 text-[11px] font-semibold animate-pulse mb-1">{errors.name}</span>}
+                </div>
+                <input value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrors({...errors, name: ''}); }}
+                  className={`input-field ${errors.name ? 'border-red-500 bg-red-900/20 shadow-inner shadow-red-500/20' : ''}`} placeholder="Nombre y apellido" />
               </div>
 
               <div>
-                <label className="input-label">Correo Electrónico *</label>
-                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="input-field" placeholder="correo@ejemplo.com" required />
+                <div className="flex justify-between items-end">
+                  <label className="input-label mb-1">Correo Electrónico <span className="text-red-400">*</span></label>
+                  {errors.email && <span className="text-red-400 text-[11px] font-semibold animate-pulse mb-1">{errors.email}</span>}
+                </div>
+                <input type="email" value={form.email} onChange={(e) => { setForm({ ...form, email: e.target.value }); setErrors({...errors, email: ''}); }}
+                  className={`input-field ${errors.email ? 'border-red-500 bg-red-900/20 shadow-inner shadow-red-500/20' : ''}`} placeholder="correo@ejemplo.com" />
               </div>
 
               <div>
-                <label className="input-label">{editItem ? 'Nueva Contraseña (dejar vacío para no cambiar)' : 'Contraseña *'}</label>
+                <div className="flex justify-between items-end">
+                  <label className="input-label mb-1">{editItem ? 'Nueva Contraseña (dejar vacío para no cambiar)' : 'Contraseña *'}</label>
+                  {errors.password && <span className="text-red-400 text-[11px] font-semibold animate-pulse mb-1">{errors.password}</span>}
+                </div>
                 <div className="relative">
                   <input type={showPassword ? 'text' : 'password'} value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    className="input-field pr-10" placeholder="••••••••" required={!editItem} />
+                    onChange={(e) => { setForm({ ...form, password: e.target.value }); setErrors({...errors, password: ''}); }}
+                    className={`input-field pr-10 ${errors.password ? 'border-red-500 bg-red-900/20 shadow-inner' : ''}`} placeholder="••••••••" />
                   <button type="button" onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
                     {showPassword ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
@@ -256,19 +284,25 @@ export default function GestionUsuariosPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="input-label">Cédula</label>
-                  <input value={form.cedula} onChange={(e) => setForm({ ...form, cedula: e.target.value })}
-                    className="input-field" placeholder="V-12345678" />
+                  <div className="flex justify-between items-end">
+                    <label className="input-label mb-1">Cédula</label>
+                    {errors.cedula && <span className="text-red-400 text-[11px] font-semibold animate-pulse mb-1">{errors.cedula}</span>}
+                  </div>
+                  <input value={form.cedula} onChange={(e) => { setForm({ ...form, cedula: e.target.value }); setErrors({...errors, cedula: ''}); }}
+                    className={`input-field ${errors.cedula ? 'border-red-500 bg-red-900/20' : ''}`} placeholder="V-12345678" />
                 </div>
                 <div>
-                  <label className="input-label">Teléfono</label>
-                  <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="input-field" placeholder="0414-1234567" />
+                  <div className="flex justify-between items-end">
+                    <label className="input-label mb-1">Teléfono</label>
+                    {errors.phone && <span className="text-red-400 text-[11px] font-semibold animate-pulse mb-1">{errors.phone}</span>}
+                  </div>
+                  <input value={form.phone} onChange={(e) => { setForm({ ...form, phone: e.target.value }); setErrors({...errors, phone: ''}); }}
+                    className={`input-field ${errors.phone ? 'border-red-500 bg-red-900/20' : ''}`} placeholder="0414-1234567" />
                 </div>
               </div>
 
               <div>
-                <label className="input-label">Rol *</label>
+                <label className="input-label">Rol <span className="text-red-400">*</span></label>
                 <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="select-field">
                   <option value="JEFE_COMUNIDAD">Jefe de Comunidad</option>
                   <option value="JEFE_CALLE">Jefe de Calle</option>
@@ -277,9 +311,12 @@ export default function GestionUsuariosPage() {
 
               {form.role === 'JEFE_COMUNIDAD' && (
                 <div>
-                  <label className="input-label">Comunidad Asignada *</label>
-                  <select value={form.comunidadId} onChange={(e) => setForm({ ...form, comunidadId: e.target.value })}
-                    className="select-field" required>
+                  <div className="flex justify-between items-end">
+                    <label className="input-label mb-1">Comunidad Asignada <span className="text-red-400">*</span></label>
+                    {errors.comunidadId && <span className="text-red-400 text-[11px] font-semibold animate-pulse mb-1">{errors.comunidadId}</span>}
+                  </div>
+                  <select value={form.comunidadId} onChange={(e) => { setForm({ ...form, comunidadId: e.target.value }); setErrors({...errors, comunidadId: ''}); }}
+                    className={`select-field ${errors.comunidadId ? 'border-red-500 bg-red-900/20' : ''}`}>
                     <option value="">Seleccionar comunidad...</option>
                     {comunidades.map((c) => (
                       <option key={c.id} value={c.id}>{c.nombre}</option>
@@ -289,8 +326,8 @@ export default function GestionUsuariosPage() {
               )}
 
               <div className="flex gap-3 pt-2">
-                <button type="submit" className="btn-primary flex-1">
-                  {editItem ? 'Guardar Cambios' : 'Crear Usuario'}
+                <button type="submit" disabled={loadingUsers} className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {loadingUsers ? 'Procesando...' : (editItem ? 'Guardar Cambios' : 'Crear Usuario')}
                 </button>
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">
                   Cancelar

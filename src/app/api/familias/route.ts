@@ -10,6 +10,7 @@ import type { Session } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { familiaCreateSchema, familiaUpdateSchema } from '@/lib/validations/familia';
 import { buildFamiliaListWhere } from '@/lib/familia-list-scope';
+import { sendAdminNotification } from '@/lib/email';
 
 async function assertFamiliaAccess(session: Session, familiaId: string) {
   const familia = await prisma.familia.findUnique({
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
 
     const familias = await prisma.familia.findMany({
       where,
+      take: 200,
       include: {
         calle: {
           select: {
@@ -175,6 +177,12 @@ export async function POST(req: NextRequest) {
       include: { miembros: true },
     });
 
+    // Enviar alerta al Admin (Fire and forget, no interrumpe envío de respuesta)
+    sendAdminNotification({
+      actionType: 'Nueva Familia Censada (Pendiente de Aprobación)',
+      details: `El usuario <b>${session.user.name}</b> (Rol: ${role}) acaba de ingresar al sistema el censo de la familia de <b>${jfNombre}</b> (Cédula: <b>${jfCedula}</b>).`
+    }).catch(e => console.error("Fallo enviando correo: ", e));
+
     return NextResponse.json(familia, { status: 201 });
   } catch (error) {
     console.error('Error al crear familia:', error);
@@ -214,10 +222,13 @@ export async function PUT(req: NextRequest) {
     const denied = await assertFamiliaAccess(session, id);
     if (denied) return denied;
 
-    // Actualizar datos de la familia
+    // Actualizar datos de la familia e invalidar aprobación
     const familia = await prisma.familia.update({
       where: { id },
-      data: familiaData as Parameters<typeof prisma.familia.update>[0]['data'],
+      data: {
+        ...(familiaData as any),
+        estado: 'PENDIENTE' // Revertir al estado de revisión
+      },
     });
 
     // Si se enviaron miembros, reemplazar todos
@@ -248,6 +259,12 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    // Notificar alerta de modificación
+    sendAdminNotification({
+      actionType: 'Actualización y Auditoría Censal (Pendiente de Aprobación)',
+      details: `El usuario <b>${session.user.name}</b> (Rol: ${session.user.role}) acaba de ingresar o modificar información (incluidos miembros) para la familia con Cédula del Jefe: <b>${familia.jfCedula}</b>. El registro ha vuelto al estado pendiente de revisión.`
+    }).catch(e => console.error("Fallo enviando correo: ", e));
+
     return NextResponse.json(familia);
   } catch (error) {
     console.error('Error al actualizar familia:', error);
@@ -268,7 +285,13 @@ export async function DELETE(req: NextRequest) {
     const denied = await assertFamiliaAccess(session, id);
     if (denied) return denied;
 
-    await prisma.familia.delete({ where: { id } });
+    const familiaAEliminar = await prisma.familia.delete({ where: { id } });
+
+    sendAdminNotification({
+      actionType: 'Expulsión o Eliminación de Familia',
+      details: `El usuario <b>${session.user.name}</b> (Rol: ${session.user.role}) ha borrado la plantilla del registro censal de <b>${familiaAEliminar.jfNombre}</b> (Cédula: ${familiaAEliminar.jfCedula}).`
+    }).catch(e => console.error("Fallo enviando correo: ", e));
+
     return NextResponse.json({ message: 'Familia eliminada' });
   } catch (error) {
     console.error('Error al eliminar familia:', error);

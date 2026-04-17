@@ -20,6 +20,12 @@ enum UserRole {
   JEFE_CALLE
 }
 
+enum EstadoFamilia {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+}
+
 // ---- Modelo de Usuario (Autenticación y Roles) ----
 model User {
   id        String   @id @default(cuid())
@@ -39,6 +45,9 @@ model User {
 
   // Relación: Un Jefe de Calle puede tener varias calles asignadas
   callesAsignadas Calle[]
+
+  // Rastro de auditoría: Censos que este usuario (Admin) ha aprobado o rechazado
+  familiasAuditadas Familia[] @relation("UsuarioAprobador")
 
   @@index([role])
   @@index([comunidadId])
@@ -86,6 +95,13 @@ model Calle {
 // ---- Familia (Vivienda censada) ----
 model Familia {
   id            String   @id @default(cuid())
+  estado        EstadoFamilia @default(PENDIENTE)
+  
+  // Auditoría: Quién aprobó/rechazó
+  aprobadoPorId   String?
+  aprobadoPor     User?    @relation("UsuarioAprobador", fields: [aprobadoPorId], references: [id], onDelete: SetNull)
+  fechaAprobacion DateTime?
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -140,6 +156,9 @@ model Familia {
 
   miembros Miembro[]
 
+  // Registros de salud del jefe de familia
+  registrosSalud RegistroSalud[]
+
   @@index([calleId])
   @@index([jfCedula])
   @@index([jfNombre])
@@ -171,6 +190,77 @@ model Miembro {
   familiaId String
   familia   Familia @relation(fields: [familiaId], references: [id], onDelete: Cascade)
 
+  // Registros de salud del miembro
+  registrosSalud RegistroSalud[]
+
   @@index([familiaId])
   @@index([cedula])
+}
+
+// =============================================================
+// MÓDULO DE SALUD — Enfermedades, Medicamentos y Registros
+// Orientado a BI: permite calcular demanda de medicamentos
+// por comunidad, calle y tipo de enfermedad
+// =============================================================
+
+// ---- Catálogo de Enfermedades ----
+model Enfermedad {
+  id          String   @id @default(cuid())
+  nombre      String   @unique // Ej: Hipertensión, Diabetes Tipo 2
+  tipo        String   // Crónica, Aguda, Infecciosa, Degenerativa, Mental, Otra
+  descripcion String?
+  createdAt   DateTime @default(now())
+
+  registros RegistroSalud[]
+}
+
+// ---- Catálogo de Medicamentos ----
+model Medicamento {
+  id              String   @id @default(cuid())
+  nombre          String   @unique // Nombre comercial. Ej: Losartán
+  principioActivo String   // Ej: Losartán Potásico
+  presentacion    String?  // Tabletas 50mg, Jarabe 200ml, Inyectable 10ml
+  unidad          String?  // Tableta, ml, Ampolla, Cápsula
+  descripcion     String?
+  createdAt       DateTime @default(now())
+
+  registros RegistroSalud[]
+}
+
+// ---- Registro de Salud (vincula persona ↔ enfermedad ↔ medicamento) ----
+model RegistroSalud {
+  id String @id @default(cuid())
+
+  // === Persona (jefe de familia O miembro) ===
+  familiaId String?
+  familia   Familia? @relation(fields: [familiaId], references: [id], onDelete: Cascade)
+  miembroId String?
+  miembro   Miembro? @relation(fields: [miembroId], references: [id], onDelete: Cascade)
+
+  // === Enfermedad ===
+  enfermedadId String
+  enfermedad   Enfermedad @relation(fields: [enfermedadId], references: [id], onDelete: Cascade)
+
+  // === Medicamento (opcional, no toda enfermedad tiene tratamiento) ===
+  medicamentoId String?
+  medicamento   Medicamento? @relation(fields: [medicamentoId], references: [id], onDelete: SetNull)
+
+  // === Datos del tratamiento ===
+  dosis         String?  // "1 tableta cada 8 horas", "10ml diarios"
+  frecuencia    String?  // Diaria, Semanal, Mensual, Según necesidad
+  cantidadMes   Float?   // Cantidad estimada por mes (para BI: demanda)
+  fechaInicio   String?  // Inicio del tratamiento
+  fechaFin      String?  // null = tratamiento continuo/crónico
+  activo        Boolean  @default(true) // Tratamiento activo o histórico
+  severidad     String?  // Leve, Moderada, Severa
+  observaciones String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([familiaId])
+  @@index([miembroId])
+  @@index([enfermedadId])
+  @@index([medicamentoId])
+  @@index([activo])
 }

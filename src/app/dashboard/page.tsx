@@ -1,10 +1,12 @@
 // =============================================================
 // Dashboard Principal - Admin y Jefe de Comunidad
-// Muestra estadísticas expandidas del censo
+// Muestra estadísticas expandidas del censo con demografía
+// Filtros jerárquicos: Comunidad > Calle
 // =============================================================
 
 'use client';
 
+import { useState } from 'react';
 import useSWR from 'swr';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -15,7 +17,7 @@ import {
 import { Doughnut, Bar } from 'react-chartjs-2';
 import {
   FiUsers, FiHome, FiMapPin, FiMap, FiClipboard,
-  FiBarChart2, FiSettings, FiArrowRight, FiDroplet, FiZap
+  FiBarChart2, FiSettings, FiArrowRight, FiDroplet, FiZap, FiFilter, FiActivity
 } from 'react-icons/fi';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, PointElement, LineElement);
@@ -35,6 +37,14 @@ interface Stats {
   totalClap: number;
   totalComunidades: number;
   totalCalles: number;
+  // Demografía detallada
+  totalNinos: number;
+  totalNinas: number;
+  totalAdolescentes: number;
+  totalAdultos: number;
+  totalAbuelosHombres: number;
+  totalAbuelasMujeres: number;
+  totalTerceraEdad: number;
   edadesPorRango: Record<string, number>;
   servicios: {
     agua: Record<string, number>;
@@ -45,9 +55,25 @@ interface Stats {
   poblacionPorComunidad: { nombre: string; totalFamilias: number; totalCalles: number }[];
 }
 
+interface Comunidad { id: string; nombre: string; }
+interface Calle { id: string; nombre: string; comunidadId: string; comunidad: { id: string; nombre: string }; }
+
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const { data: stats, error, isLoading, mutate } = useSWR<Stats>('/api/estadisticas');
+  const [filtroComunidad, setFiltroComunidad] = useState('');
+  const [filtroCalle, setFiltroCalle] = useState('');
+
+  const { data: comunidades = [] } = useSWR<Comunidad[]>('/api/comunidades');
+  const callesUrl = filtroComunidad ? `/api/calles?comunidadId=${filtroComunidad}` : null;
+  const { data: calles = [] } = useSWR<Calle[]>(callesUrl);
+
+  // Build stats URL with filters
+  const statsParams = new URLSearchParams();
+  if (filtroCalle) statsParams.set('calleId', filtroCalle);
+  else if (filtroComunidad) statsParams.set('comunidadId', filtroComunidad);
+  const statsKey = `/api/estadisticas${statsParams.toString() ? '?' + statsParams.toString() : ''}`;
+
+  const { data: stats, error, isLoading, mutate } = useSWR<Stats>(statsKey);
 
   const role = session?.user?.role;
   const isAdmin = role === 'ADMIN';
@@ -75,14 +101,14 @@ export default function DashboardPage() {
   }
 
   const statCards = [
-    { label: 'Población Total', value: stats.totalMiembros, icon: FiUsers, color: 'blue', gradient: 'from-blue-500 to-blue-700' },
-    { label: 'Familias', value: stats.totalFamilias, icon: FiHome, color: 'emerald', gradient: 'from-emerald-500 to-emerald-700' },
-    { label: 'Comunidades', value: stats.totalComunidades, icon: FiMap, color: 'purple', gradient: 'from-purple-500 to-purple-700' },
-    { label: 'Calles', value: stats.totalCalles, icon: FiMapPin, color: 'cyan', gradient: 'from-cyan-500 to-cyan-700' },
-    { label: 'Pensionados', value: stats.totalPensionados, icon: FiUsers, color: 'yellow', gradient: 'from-yellow-500 to-yellow-700' },
-    { label: 'Discapacidad', value: stats.totalDiscapacidad, icon: FiUsers, color: 'red', gradient: 'from-red-500 to-red-700' },
-    { label: 'Carnet Patria', value: stats.totalCarnetPatria, icon: FiClipboard, color: 'indigo', gradient: 'from-indigo-500 to-indigo-700' },
-    { label: 'Reciben CLAP', value: stats.totalClap, icon: FiClipboard, color: 'teal', gradient: 'from-teal-500 to-teal-700' },
+    { label: 'Población Total', value: stats.totalMiembros, icon: FiUsers, gradient: 'from-blue-500 to-blue-700' },
+    { label: 'Familias', value: stats.totalFamilias, icon: FiHome, gradient: 'from-emerald-500 to-emerald-700' },
+    { label: 'Comunidades', value: stats.totalComunidades, icon: FiMap, gradient: 'from-purple-500 to-purple-700' },
+    { label: 'Calles', value: stats.totalCalles, icon: FiMapPin, gradient: 'from-cyan-500 to-cyan-700' },
+    { label: 'Pensionados', value: stats.totalPensionados, icon: FiUsers, gradient: 'from-yellow-500 to-yellow-700' },
+    { label: 'Discapacidad', value: stats.totalDiscapacidad, icon: FiUsers, gradient: 'from-red-500 to-red-700' },
+    { label: 'Carnet Patria', value: stats.totalCarnetPatria, icon: FiClipboard, gradient: 'from-indigo-500 to-indigo-700' },
+    { label: 'Reciben CLAP', value: stats.totalClap, icon: FiClipboard, gradient: 'from-teal-500 to-teal-700' },
   ];
 
   const generoData = {
@@ -110,6 +136,30 @@ export default function DashboardPage() {
     }],
   };
 
+  // Demografía detallada
+  const demografiaData = {
+    labels: ['Niños', 'Niñas', 'Adolescentes', 'Adultos', 'Abuelos', 'Abuelas'],
+    datasets: [{
+      data: [
+        stats.totalNinos, stats.totalNinas, stats.totalAdolescentes,
+        stats.totalAdultos, stats.totalAbuelosHombres, stats.totalAbuelasMujeres,
+      ],
+      backgroundColor: [
+        'rgba(59, 130, 246, 0.7)',  // Niños - azul
+        'rgba(236, 72, 153, 0.7)',  // Niñas - rosa
+        'rgba(99, 102, 241, 0.7)',  // Adolescentes - indigo
+        'rgba(34, 197, 94, 0.7)',   // Adultos - verde
+        'rgba(234, 179, 8, 0.7)',   // Abuelos - amarillo
+        'rgba(249, 115, 22, 0.7)',  // Abuelas - naranja
+      ],
+      borderColor: [
+        'rgb(59, 130, 246)', 'rgb(236, 72, 153)', 'rgb(99, 102, 241)',
+        'rgb(34, 197, 94)', 'rgb(234, 179, 8)', 'rgb(249, 115, 22)',
+      ],
+      borderWidth: 2,
+    }],
+  };
+
   const chartOpts = {
     responsive: true,
     maintainAspectRatio: false,
@@ -128,24 +178,55 @@ export default function DashboardPage() {
   const quickActions = isAdmin ? [
     { label: 'Gestionar Usuarios', href: '/dashboard/jefes-calle', icon: FiSettings, color: 'bg-purple-500/20 text-purple-400' },
     { label: 'Ver Comunidades', href: '/dashboard/comunidades', icon: FiMap, color: 'bg-blue-500/20 text-blue-400' },
-    { label: 'Ver Familias', href: '/dashboard/familias', icon: FiClipboard, color: 'bg-emerald-500/20 text-emerald-400' },
+    { label: 'Salud', href: '/dashboard/salud', icon: FiActivity, color: 'bg-emerald-500/20 text-emerald-400' },
+    { label: 'Demografía', href: '/dashboard/demografia', icon: FiUsers, color: 'bg-pink-500/20 text-pink-400' },
     { label: 'Reportes', href: '/dashboard/reportes', icon: FiBarChart2, color: 'bg-cyan-500/20 text-cyan-400' },
   ] : [
     { label: 'Ver Calles', href: '/dashboard/calles', icon: FiMapPin, color: 'bg-blue-500/20 text-blue-400' },
-    { label: 'Ver Familias', href: '/dashboard/familias', icon: FiClipboard, color: 'bg-emerald-500/20 text-emerald-400' },
+    { label: 'Salud', href: '/dashboard/salud', icon: FiActivity, color: 'bg-emerald-500/20 text-emerald-400' },
+    { label: 'Demografía', href: '/dashboard/demografia', icon: FiUsers, color: 'bg-pink-500/20 text-pink-400' },
     { label: 'Reportes', href: '/dashboard/reportes', icon: FiBarChart2, color: 'bg-cyan-500/20 text-cyan-400' },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Título */}
-      <div>
-        <h2 className="text-2xl font-bold text-white">
-          {isAdmin ? 'Panel de Administración' : 'Mi Comunidad'}
-        </h2>
-        <p className="text-slate-500 mt-1">
-          {isAdmin ? 'Visión general del censo comunal' : 'Estadísticas de tu comunidad'}
-        </p>
+      {/* Título + Filtros */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white">
+            {isAdmin ? 'Panel de Administración' : 'Mi Comunidad'}
+          </h2>
+          <p className="text-slate-500 mt-1">
+            {isAdmin ? 'Visión general del censo comunal' : 'Estadísticas de tu comunidad'}
+          </p>
+        </div>
+
+        {/* Filtros jerárquicos */}
+        <div className="flex flex-wrap items-center gap-2">
+          <FiFilter className="w-4 h-4 text-slate-500" />
+          <select
+            value={filtroComunidad}
+            onChange={(e) => { setFiltroComunidad(e.target.value); setFiltroCalle(''); }}
+            className="select-field max-w-[200px] text-sm"
+          >
+            <option value="">Todas las comunidades</option>
+            {comunidades.map((c) => (
+              <option key={c.id} value={c.id}>{c.nombre.replace('Consejo Comunal ', '')}</option>
+            ))}
+          </select>
+          {filtroComunidad && (
+            <select
+              value={filtroCalle}
+              onChange={(e) => setFiltroCalle(e.target.value)}
+              className="select-field max-w-[180px] text-sm"
+            >
+              <option value="">Todas las calles</option>
+              {calles.map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {/* Tarjetas de estadísticas */}
@@ -163,6 +244,40 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {/* Demografía Detallada */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+        <div className="glass-card p-4 text-center hover:scale-[1.02] transition-transform">
+          <p className="text-xl font-bold text-blue-400">{stats.totalNinos}</p>
+          <p className="text-xs text-slate-500 mt-1">👦 Niños</p>
+          <p className="text-[10px] text-slate-600">&lt; 12 años</p>
+        </div>
+        <div className="glass-card p-4 text-center hover:scale-[1.02] transition-transform">
+          <p className="text-xl font-bold text-pink-400">{stats.totalNinas}</p>
+          <p className="text-xs text-slate-500 mt-1">👧 Niñas</p>
+          <p className="text-[10px] text-slate-600">&lt; 12 años</p>
+        </div>
+        <div className="glass-card p-4 text-center hover:scale-[1.02] transition-transform">
+          <p className="text-xl font-bold text-indigo-400">{stats.totalAdolescentes}</p>
+          <p className="text-xs text-slate-500 mt-1">🧑 Adolescentes</p>
+          <p className="text-[10px] text-slate-600">12–17 años</p>
+        </div>
+        <div className="glass-card p-4 text-center hover:scale-[1.02] transition-transform">
+          <p className="text-xl font-bold text-green-400">{stats.totalAdultos}</p>
+          <p className="text-xs text-slate-500 mt-1">🧑‍💼 Adultos</p>
+          <p className="text-[10px] text-slate-600">18–59 años</p>
+        </div>
+        <div className="glass-card p-4 text-center hover:scale-[1.02] transition-transform">
+          <p className="text-xl font-bold text-yellow-400">{stats.totalAbuelosHombres}</p>
+          <p className="text-xs text-slate-500 mt-1">👴 Abuelos</p>
+          <p className="text-[10px] text-slate-600">≥ 60 años</p>
+        </div>
+        <div className="glass-card p-4 text-center hover:scale-[1.02] transition-transform">
+          <p className="text-xl font-bold text-orange-400">{stats.totalAbuelasMujeres}</p>
+          <p className="text-xs text-slate-500 mt-1">👵 Abuelas</p>
+          <p className="text-[10px] text-slate-600">≥ 60 años</p>
+        </div>
+      </div>
+
       {/* Gráficos principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <div className="glass-card p-5">
@@ -176,9 +291,9 @@ export default function DashboardPage() {
         </div>
 
         <div className="glass-card p-5">
-          <h3 className="text-base font-semibold text-white mb-4">Distribución por Género</h3>
+          <h3 className="text-base font-semibold text-white mb-4">Segmentación Demográfica</h3>
           <div className="h-64 md:h-72">
-            <Doughnut data={generoData} options={chartOpts} />
+            <Doughnut data={demografiaData} options={chartOpts} />
           </div>
         </div>
       </div>
@@ -194,8 +309,8 @@ export default function DashboardPage() {
           <p className="text-xs text-slate-500 mt-1">En Lactancia</p>
         </div>
         <div className="glass-card p-4 text-center">
-          <p className="text-xl font-bold text-green-400">{stats.totalMayores}</p>
-          <p className="text-xs text-slate-500 mt-1">Mayores de 18</p>
+          <p className="text-xl font-bold text-amber-400">{stats.totalTerceraEdad}</p>
+          <p className="text-xs text-slate-500 mt-1">Tercera Edad (≥60)</p>
         </div>
         <div className="glass-card p-4 text-center">
           <p className="text-xl font-bold text-cyan-400">{stats.totalMenores}</p>
