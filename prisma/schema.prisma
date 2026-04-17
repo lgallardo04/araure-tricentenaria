@@ -1,9 +1,3 @@
-// =============================================================
-// Esquema de Base de Datos - Comuna Araure Tricentenaria
-// Sistema de Censo Comunal
-// Compatible con PostgreSQL (Supabase) y SQLite (desarrollo)
-// =============================================================
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,6 +6,184 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                String     @id @default(cuid())
+  name              String
+  email             String     @unique
+  password          String
+  role              UserRole   @default(JEFE_CALLE)
+  phone             String?
+  cedula            String?
+  active            Boolean    @default(true)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  comunidadId       String?
+  callesAsignadas   Calle[]
+  familiasAuditadas Familia[]  @relation("UsuarioAprobador")
+  comunidad         Comunidad? @relation("JefeComunidadUsuario", fields: [comunidadId], references: [id])
+
+  @@index([role])
+  @@index([comunidadId])
+  @@index([email])
+}
+
+model Comunidad {
+  id             String   @id @default(cuid())
+  nombre         String
+  descripcion    String?
+  sector         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  calles         Calle[]
+  jefesComunidad User[]   @relation("JefeComunidadUsuario")
+}
+
+model Calle {
+  id              String    @id @default(cuid())
+  nombre          String
+  avenida         String?
+  puntoReferencia String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  comunidadId     String
+  jefeCalleId     String?
+  comunidad       Comunidad @relation(fields: [comunidadId], references: [id], onDelete: Cascade)
+  jefeCalle       User?     @relation(fields: [jefeCalleId], references: [id])
+  familias        Familia[]
+
+  @@index([comunidadId])
+  @@index([jefeCalleId])
+}
+
+model Familia {
+  id                   String          @id @default(cuid())
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  direccion            String
+  tipoVivienda         String
+  tenencia             String
+  materialConstruccion String?
+  cantidadHabitaciones Int?
+  cantidadBanos        Int?
+  observaciones        String?
+  servicioAgua         String?
+  servicioElectricidad String?
+  servicioGas          String?
+  servicioInternet     String?
+  servicioAseo         String?
+  servicioTelefono     String?
+  carnetPatria         Boolean         @default(false)
+  codigoCarnetPatria   String?
+  recibeClap           Boolean         @default(false)
+  otrosBeneficios      String?
+  ingresoFamiliar      String?
+  jfNombre             String
+  jfCedula             String
+  jfNacionalidad       String          @default("V")
+  jfFechaNac           String
+  jfGenero             String
+  jfEstadoCivil        String?
+  jfTelefono           String?
+  jfEmail              String?
+  jfEscolaridad        String?
+  jfOcupacion          String?
+  jfLugarTrabajo       String?
+  jfPensionado         Boolean         @default(false)
+  jfDiscapacidad       Boolean         @default(false)
+  jfTipoDiscapacidad   String?
+  jfEnfermedad         String?
+  jfEmbarazada         Boolean         @default(false)
+  jfLactancia          Boolean         @default(false)
+  calleId              String
+  estado               EstadoFamilia   @default(PENDIENTE)
+  aprobadoPorId        String?
+  fechaAprobacion      DateTime?
+  aprobadoPor          User?           @relation("UsuarioAprobador", fields: [aprobadoPorId], references: [id])
+  calle                Calle           @relation(fields: [calleId], references: [id], onDelete: Cascade)
+  miembros             Miembro[]
+  registrosSalud       RegistroSalud[]
+
+  @@index([calleId])
+  @@index([jfCedula])
+  @@index([jfNombre])
+}
+
+model Miembro {
+  id               String          @id @default(cuid())
+  nombre           String
+  cedula           String?
+  nacionalidad     String          @default("V")
+  fechaNacimiento  String
+  genero           String
+  parentesco       String
+  estadoCivil      String?
+  escolaridad      String?
+  ocupacion        String?
+  lugarTrabajo     String?
+  salud            String?
+  pensionado       Boolean         @default(false)
+  discapacidad     Boolean         @default(false)
+  tipoDiscapacidad String?
+  embarazada       Boolean         @default(false)
+  lactancia        Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  familiaId        String
+  familia          Familia         @relation(fields: [familiaId], references: [id], onDelete: Cascade)
+  registrosSalud   RegistroSalud[]
+
+  @@index([familiaId])
+  @@index([cedula])
+}
+
+model Enfermedad {
+  id          String          @id @default(cuid())
+  nombre      String          @unique
+  tipo        String
+  descripcion String?
+  createdAt   DateTime        @default(now())
+  registros   RegistroSalud[]
+}
+
+model Medicamento {
+  id              String          @id @default(cuid())
+  nombre          String          @unique
+  principioActivo String
+  presentacion    String?
+  unidad          String?
+  descripcion     String?
+  createdAt       DateTime        @default(now())
+  registros       RegistroSalud[]
+}
+
+model RegistroSalud {
+  id            String       @id @default(cuid())
+  familiaId     String?
+  miembroId     String?
+  enfermedadId  String
+  medicamentoId String?
+  dosis         String?
+  frecuencia    String?
+  cantidadMes   Float?
+  fechaInicio   String?
+  fechaFin      String?
+  activo        Boolean      @default(true)
+  severidad     String?
+  observaciones String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  enfermedad    Enfermedad   @relation(fields: [enfermedadId], references: [id], onDelete: Cascade)
+  familia       Familia?     @relation(fields: [familiaId], references: [id], onDelete: Cascade)
+  medicamento   Medicamento? @relation(fields: [medicamentoId], references: [id])
+  miembro       Miembro?     @relation(fields: [miembroId], references: [id], onDelete: Cascade)
+
+  @@index([familiaId])
+  @@index([miembroId])
+  @@index([enfermedadId])
+  @@index([medicamentoId])
+  @@index([activo])
 }
 
 enum UserRole {
@@ -24,243 +196,4 @@ enum EstadoFamilia {
   PENDIENTE
   APROBADA
   RECHAZADA
-}
-
-// ---- Modelo de Usuario (Autenticación y Roles) ----
-model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String   // Hash bcrypt
-  role      UserRole @default(JEFE_CALLE)
-  phone     String?
-  cedula    String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relación: Un Jefe de Comunidad gestiona una comunidad
-  comunidadId    String?
-  comunidad      Comunidad?  @relation("JefeComunidadUsuario", fields: [comunidadId], references: [id], onDelete: SetNull)
-
-  // Relación: Un Jefe de Calle puede tener varias calles asignadas
-  callesAsignadas Calle[]
-
-  // Rastro de auditoría: Censos que este usuario (Admin) ha aprobado o rechazado
-  familiasAuditadas Familia[] @relation("UsuarioAprobador")
-
-  @@index([role])
-  @@index([comunidadId])
-  @@index([email])
-}
-
-// ---- Comunidad (Consejo Comunal) ----
-model Comunidad {
-  id             String   @id @default(cuid())
-  nombre         String
-  descripcion    String?
-  sector         String?  // Sector geográfico (norte, sur, centro, etc.)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relación: Jefes de comunidad asignados
-  jefesComunidad User[]   @relation("JefeComunidadUsuario")
-
-  // Relación: Una comunidad tiene muchas calles
-  calles Calle[]
-}
-
-// ---- Calle / Vereda / Sector ----
-model Calle {
-  id              String   @id @default(cuid())
-  nombre          String
-  avenida         String?
-  puntoReferencia String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relaciones
-  comunidadId String
-  comunidad   Comunidad @relation(fields: [comunidadId], references: [id], onDelete: Cascade)
-
-  jefeCalleId String?
-  jefeCalle   User?   @relation(fields: [jefeCalleId], references: [id], onDelete: SetNull)
-
-  familias Familia[]
-
-  @@index([comunidadId])
-  @@index([jefeCalleId])
-}
-
-// ---- Familia (Vivienda censada) ----
-model Familia {
-  id            String   @id @default(cuid())
-  estado        EstadoFamilia @default(PENDIENTE)
-  
-  // Auditoría: Quién aprobó/rechazó
-  aprobadoPorId   String?
-  aprobadoPor     User?    @relation("UsuarioAprobador", fields: [aprobadoPorId], references: [id], onDelete: SetNull)
-  fechaAprobacion DateTime?
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // === DATOS DE LA VIVIENDA ===
-  direccion            String   // Dirección exacta de la vivienda
-  tipoVivienda         String   // Casa, Apartamento, Rancho, Quinta, Habitación, Otro
-  tenencia             String   // Propia, Alquilada, Prestada, Invadida, Herencia, Otro
-  materialConstruccion String?  // Bloque, Bahareque, Zinc, Madera, Mixto, Otro
-  cantidadHabitaciones Int?     // Número de habitaciones
-  cantidadBanos        Int?     // Número de baños
-  observaciones        String?
-
-  // === SERVICIOS BÁSICOS ===
-  servicioAgua          String?  // Tubería directa, Cisterna, Pozo, No tiene
-  servicioElectricidad  String?  // Sí, No, Irregular
-  servicioGas           String?  // Directo, Bombona, Leña, No tiene
-  servicioInternet      String?  // Sí, No
-  servicioAseo          String?  // Sí, No, Irregular
-  servicioTelefono      String?  // Fijo, Solo Celular, No tiene
-
-  // === PROGRAMAS SOCIALES ===
-  carnetPatria       Boolean @default(false)
-  codigoCarnetPatria String?
-  recibeClap         Boolean @default(false)
-  otrosBeneficios    String? // Otros programas sociales
-
-  // === SITUACIÓN ECONÓMICA ===
-  ingresoFamiliar   String?  // Rango: Menos de 1 salario mínimo, 1-2, 2-3, Más de 3
-
-  // === DATOS DEL JEFE DE FAMILIA ===
-  jfNombre       String   // Nombre completo del jefe de familia
-  jfCedula       String   // Cédula de identidad
-  jfNacionalidad String   @default("V") // V (Venezolano) / E (Extranjero)
-  jfFechaNac     String   // Fecha de nacimiento (obligatorio)
-  jfGenero       String   // M / F
-  jfEstadoCivil  String?  // Soltero/a, Casado/a, Concubino/a, Divorciado/a, Viudo/a
-  jfTelefono     String?
-  jfEmail        String?
-  jfEscolaridad  String?  // Ninguna, Primaria, Secundaria, Bachillerato, Técnico, Universitaria, Postgrado
-  jfOcupacion    String?
-  jfLugarTrabajo String?
-  jfPensionado   Boolean  @default(false)
-  jfDiscapacidad Boolean  @default(false)
-  jfTipoDiscapacidad String?
-  jfEnfermedad   String?  // Enfermedades crónicas
-  jfEmbarazada   Boolean  @default(false)
-  jfLactancia    Boolean  @default(false)
-
-  // Relaciones
-  calleId String
-  calle   Calle @relation(fields: [calleId], references: [id], onDelete: Cascade)
-
-  miembros Miembro[]
-
-  // Registros de salud del jefe de familia
-  registrosSalud RegistroSalud[]
-
-  @@index([calleId])
-  @@index([jfCedula])
-  @@index([jfNombre])
-}
-
-// ---- Miembro de Familia ----
-model Miembro {
-  id               String   @id @default(cuid())
-  nombre           String   // Nombre completo
-  cedula           String?  // Cédula (puede no tener si es menor)
-  nacionalidad     String   @default("V") // V / E
-  fechaNacimiento  String   // Fecha de nacimiento (obligatorio)
-  genero           String   // M / F (obligatorio)
-  parentesco       String   // Hijo/a, Esposo/a, Abuelo/a, etc. (obligatorio)
-  estadoCivil      String?  // Soltero/a, Casado/a, etc.
-  escolaridad      String?  // Primaria, Secundaria, Universitaria, etc.
-  ocupacion        String?
-  lugarTrabajo     String?
-  salud            String?  // Enfermedades o condiciones crónicas
-  pensionado       Boolean  @default(false)
-  discapacidad     Boolean  @default(false)
-  tipoDiscapacidad String?
-  embarazada       Boolean  @default(false)
-  lactancia        Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  // Relación
-  familiaId String
-  familia   Familia @relation(fields: [familiaId], references: [id], onDelete: Cascade)
-
-  // Registros de salud del miembro
-  registrosSalud RegistroSalud[]
-
-  @@index([familiaId])
-  @@index([cedula])
-}
-
-// =============================================================
-// MÓDULO DE SALUD — Enfermedades, Medicamentos y Registros
-// Orientado a BI: permite calcular demanda de medicamentos
-// por comunidad, calle y tipo de enfermedad
-// =============================================================
-
-// ---- Catálogo de Enfermedades ----
-model Enfermedad {
-  id          String   @id @default(cuid())
-  nombre      String   @unique // Ej: Hipertensión, Diabetes Tipo 2
-  tipo        String   // Crónica, Aguda, Infecciosa, Degenerativa, Mental, Otra
-  descripcion String?
-  createdAt   DateTime @default(now())
-
-  registros RegistroSalud[]
-}
-
-// ---- Catálogo de Medicamentos ----
-model Medicamento {
-  id              String   @id @default(cuid())
-  nombre          String   @unique // Nombre comercial. Ej: Losartán
-  principioActivo String   // Ej: Losartán Potásico
-  presentacion    String?  // Tabletas 50mg, Jarabe 200ml, Inyectable 10ml
-  unidad          String?  // Tableta, ml, Ampolla, Cápsula
-  descripcion     String?
-  createdAt       DateTime @default(now())
-
-  registros RegistroSalud[]
-}
-
-// ---- Registro de Salud (vincula persona ↔ enfermedad ↔ medicamento) ----
-model RegistroSalud {
-  id String @id @default(cuid())
-
-  // === Persona (jefe de familia O miembro) ===
-  familiaId String?
-  familia   Familia? @relation(fields: [familiaId], references: [id], onDelete: Cascade)
-  miembroId String?
-  miembro   Miembro? @relation(fields: [miembroId], references: [id], onDelete: Cascade)
-
-  // === Enfermedad ===
-  enfermedadId String
-  enfermedad   Enfermedad @relation(fields: [enfermedadId], references: [id], onDelete: Cascade)
-
-  // === Medicamento (opcional, no toda enfermedad tiene tratamiento) ===
-  medicamentoId String?
-  medicamento   Medicamento? @relation(fields: [medicamentoId], references: [id], onDelete: SetNull)
-
-  // === Datos del tratamiento ===
-  dosis         String?  // "1 tableta cada 8 horas", "10ml diarios"
-  frecuencia    String?  // Diaria, Semanal, Mensual, Según necesidad
-  cantidadMes   Float?   // Cantidad estimada por mes (para BI: demanda)
-  fechaInicio   String?  // Inicio del tratamiento
-  fechaFin      String?  // null = tratamiento continuo/crónico
-  activo        Boolean  @default(true) // Tratamiento activo o histórico
-  severidad     String?  // Leve, Moderada, Severa
-  observaciones String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([familiaId])
-  @@index([miembroId])
-  @@index([enfermedadId])
-  @@index([medicamentoId])
-  @@index([activo])
 }
