@@ -8,7 +8,9 @@
 import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { useSession } from 'next-auth/react';
-import { FiSearch, FiX, FiUsers, FiMapPin, FiTrash2, FiChevronDown, FiChevronUp, FiUser, FiHome, FiDownload } from 'react-icons/fi';
+import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { FiSearch, FiX, FiUsers, FiMapPin, FiTrash2, FiChevronDown, FiChevronUp, FiUser, FiHome, FiDownload, FiFilter } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { apiFetch } from '@/lib/api';
 
@@ -52,6 +54,10 @@ interface Familia {
 
 export default function FamiliasPage() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const urlCalleId = searchParams.get('calleId');
+
   const canExport = ['ADMIN', 'JEFE_COMUNIDAD'].includes(session?.user?.role ?? '');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -62,15 +68,22 @@ export default function FamiliasPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const listKey = debouncedSearch
-    ? `/api/familias?search=${encodeURIComponent(debouncedSearch)}`
-    : '/api/familias';
+  // Construir URL de API con filtros
+  const getListKey = () => {
+    const params = new URLSearchParams();
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    if (urlCalleId) params.set('calleId', urlCalleId);
+    
+    const query = params.toString();
+    return query ? `/api/familias?${query}` : '/api/familias';
+  };
+
   const {
     data: familias = [],
     error,
     isLoading: loading,
     mutate,
-  } = useSWR<Familia[]>(listKey);
+  } = useSWR<Familia[]>(getListKey());
 
   const handleDelete = async (id: string, nombre: string) => {
     if (!confirm(`¿Eliminar la familia de "${nombre}"?`)) return;
@@ -110,20 +123,36 @@ export default function FamiliasPage() {
         )}
       </div>
 
-      {/* Búsqueda con debounce */}
-      <div className="relative max-w-md">
-        <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nombre, cédula o dirección..."
-          className="input-field pl-12"
-        />
-        {search && (
-          <button onClick={() => setSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
-            <FiX className="w-4 h-4" />
-          </button>
+      {/* Búsqueda con debounce y filtros activos */}
+      <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
+        <div className="relative flex-1 w-full max-w-md">
+          <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, cédula o dirección..."
+            className="input-field pl-12"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+              <FiX className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {urlCalleId && (
+          <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 px-3 py-2 rounded-xl text-blue-400 text-sm animate-fade-in">
+            <FiFilter className="w-4 h-4" />
+            <span>Filtrado por calle</span>
+            <button 
+              onClick={() => router.push('/dashboard/familias')}
+              className="ml-1 hover:text-white transition-colors"
+              title="Quitar filtro"
+            >
+              <FiX className="w-4 h-4" />
+            </button>
+          </div>
         )}
       </div>
 

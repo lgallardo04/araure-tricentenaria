@@ -239,7 +239,7 @@ export default function Sidebar({ isOpen, onClose, onSelectComunidad }: SidebarP
                     {com.calles.map((calle) => (
                       <Link
                         key={calle.id}
-                        href={isJefeCalle ? `/mi-calle?calleId=${calle.id}` : `/dashboard/calles/${calle.id}`}
+                        href={isJefeCalle ? `/mi-calle?calleId=${calle.id}` : `/dashboard/familias?calleId=${calle.id}`}
                         className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-500 hover:text-slate-300 rounded-lg hover:bg-slate-800/50 transition-colors"
                         onClick={onClose}
                       >
