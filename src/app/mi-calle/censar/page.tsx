@@ -268,13 +268,13 @@ export default function CensarPage() {
   ];
 
   // Helper para label obligatorio
-  const Req = ({ children }: { children: React.ReactNode }) => (
+  const Req = ({ children, error }: { children: React.ReactNode; error?: any }) => (
     <label className="input-label">
       {children} <span className="text-red-400">*</span>
     </label>
   );
 
-  const Opt = ({ children }: { children: React.ReactNode }) => (
+  const Opt = ({ children, error }: { children: React.ReactNode; error?: any }) => (
     <label className="input-label">{children}</label>
   );
 
