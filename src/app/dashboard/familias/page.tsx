@@ -140,7 +140,7 @@ export default function FamiliasPage() {
             <FiUsers className="w-8 h-8 text-blue-500" />
           </div>
           <h3 className="text-xl font-semibold text-white mb-2">No se encontraron familias</h3>
-          <p className="max-w-md mx-auto mb-6">Aún no hay censos registrados en la plataforma o los filtros no coinciden. Avisele a los Jefes de Calle que comiencen a registrar datos desde el menú "Censar".</p>
+          <p className="max-w-md mx-auto mb-6">Aún no hay censos registrados en la plataforma o los filtros no coinciden. Avisele a los Jefes de Calle que comiencen a registrar datos desde el menú &quot;Censar&quot;.</p>
         </div>
       ) : (
         <div className="space-y-3">

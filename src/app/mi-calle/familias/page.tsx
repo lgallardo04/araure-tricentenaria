@@ -148,7 +148,7 @@ export default function MisFamiliasPage() {
             <FiUsers className="w-8 h-8 text-blue-500" />
           </div>
           <h3 className="text-xl font-semibold text-white mb-2">No tienes familias registradas</h3>
-          <p className="max-w-md mx-auto mb-6">Aún no has registrado ninguna familia en las calles que administras. Dirígete a la sección "Censar" para comenzar a añadir los datos de tus vecinos.</p>
+          <p className="max-w-md mx-auto mb-6">Aún no has registrado ninguna familia en las calles que administras. Dirígete a la sección &quot;Censar&quot; para comenzar a añadir los datos de tus vecinos.</p>
         </div>
       ) : (
         <div className="space-y-3">
