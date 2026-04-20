@@ -1,7 +1,7 @@
 // =============================================================
-// Formulario de Censo Completo (Expandido)
-// 4 pasos: Vivienda, Jefe de Familia, Miembros, Servicios/Programas
-// Con campos obligatorios del censo comunal venezolano
+// Formulario de Censo Completo — Normalizado
+// 4 pasos: Vivienda, Jefe de Familia, Miembros, Servicios
+// Envía payload normalizado al API
 // =============================================================
 
 'use client';
@@ -16,7 +16,7 @@ import {
 import toast from 'react-hot-toast';
 import { apiFetch } from '@/lib/api';
 
-const CENSO_DRAFT_KEY = 'araure-censo-borrador-v1';
+const CENSO_DRAFT_KEY = 'araure-censo-borrador-v2';
 
 interface Calle {
   id: string;
@@ -24,7 +24,7 @@ interface Calle {
   comunidad: { id: string; nombre: string };
 }
 
-interface Miembro {
+interface MiembroForm {
   nombre: string;
   cedula: string;
   nacionalidad: string;
@@ -43,7 +43,7 @@ interface Miembro {
   lactancia: boolean;
 }
 
-const miembroVacio: Miembro = {
+const miembroVacio: MiembroForm = {
   nombre: '', cedula: '', nacionalidad: 'V', fechaNacimiento: '', genero: '',
   parentesco: '', estadoCivil: '', escolaridad: '', ocupacion: '', lugarTrabajo: '',
   salud: '', pensionado: false, discapacidad: false, tipoDiscapacidad: '',
@@ -58,17 +58,16 @@ export default function CensarPage() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
 
-  // Datos del formulario
   const [calleId, setCalleId] = useState(searchParams.get('calleId') || '');
 
   const [vivienda, setVivienda] = useState({
-    direccion: '', tipoVivienda: '', tenencia: '', materialConstruccion: '',
+    direccion: '', tipo: '', tenencia: '', materialConstruccion: '',
     cantidadHabitaciones: '', cantidadBanos: '', observaciones: '',
   });
 
   const [servicios, setServicios] = useState({
-    servicioAgua: '', servicioElectricidad: '', servicioGas: '',
-    servicioInternet: '', servicioAseo: '', servicioTelefono: '',
+    AGUA: '', ELECTRICIDAD: '', GAS: '',
+    INTERNET: '', ASEO: '', TELEFONO: '',
   });
 
   const [programas, setProgramas] = useState({
@@ -77,14 +76,14 @@ export default function CensarPage() {
   });
 
   const [jefe, setJefe] = useState({
-    jfNombre: '', jfCedula: '', jfNacionalidad: 'V', jfFechaNac: '', jfGenero: '',
-    jfEstadoCivil: '', jfTelefono: '', jfEmail: '', jfEscolaridad: '',
-    jfOcupacion: '', jfLugarTrabajo: '', jfPensionado: false,
-    jfDiscapacidad: false, jfTipoDiscapacidad: '', jfEnfermedad: '',
-    jfEmbarazada: false, jfLactancia: false,
+    nombre: '', cedula: '', nacionalidad: 'V', fechaNacimiento: '', genero: '',
+    estadoCivil: '', telefono: '', email: '', escolaridad: '',
+    ocupacion: '', lugarTrabajo: '', pensionado: false,
+    discapacidad: false, tipoDiscapacidad: '', enfermedad: '',
+    embarazada: false, lactancia: false,
   });
 
-  const [miembros, setMiembros] = useState<Miembro[]>([]);
+  const [miembros, setMiembros] = useState<MiembroForm[]>([]);
   const [draftChecked, setDraftChecked] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -101,20 +100,8 @@ export default function CensarPage() {
     try {
       const raw = sessionStorage.getItem(CENSO_DRAFT_KEY);
       if (raw) {
-        const d = JSON.parse(raw) as {
-          step?: number;
-          calleId?: string;
-          vivienda?: Record<string, string>;
-          servicios?: Record<string, string>;
-          programas?: Record<string, string | boolean>;
-          jefe?: Record<string, string | boolean>;
-          miembros?: Miembro[];
-        };
-        if (
-          window.confirm(
-            'Hay un borrador de censo sin enviar. ¿Desea continuar donde lo dejó?'
-          )
-        ) {
+        const d = JSON.parse(raw);
+        if (window.confirm('Hay un borrador de censo sin enviar. ¿Desea continuar donde lo dejó?')) {
           if (typeof d.step === 'number') setStep(d.step);
           if (d.calleId !== undefined) setCalleId(d.calleId);
           if (d.vivienda) setVivienda((prev) => ({ ...prev, ...d.vivienda }));
@@ -156,19 +143,9 @@ export default function CensarPage() {
       try {
         sessionStorage.setItem(
           CENSO_DRAFT_KEY,
-          JSON.stringify({
-            step,
-            calleId,
-            vivienda,
-            servicios,
-            programas,
-            jefe,
-            miembros,
-          })
+          JSON.stringify({ step, calleId, vivienda, servicios, programas, jefe, miembros })
         );
-      } catch {
-        /* almacenamiento lleno u offline */
-      }
+      } catch { /* almacenamiento lleno */ }
     }, 500);
     return () => clearTimeout(t);
   }, [session, draftChecked, step, calleId, vivienda, servicios, programas, jefe, miembros]);
@@ -185,24 +162,88 @@ export default function CensarPage() {
     if (s === 1) {
       if (!calleId) { toast.error('Seleccione una calle'); return false; }
       if (!vivienda.direccion) { toast.error('La dirección es obligatoria'); return false; }
-      if (!vivienda.tipoVivienda) { toast.error('El tipo de vivienda es obligatorio'); return false; }
+      if (!vivienda.tipo) { toast.error('El tipo de vivienda es obligatorio'); return false; }
       if (!vivienda.tenencia) { toast.error('La tenencia es obligatoria'); return false; }
     }
     if (s === 2) {
-      if (!jefe.jfNombre) { toast.error('El nombre del jefe es obligatorio'); return false; }
-      if (!jefe.jfCedula) { toast.error('La cédula del jefe es obligatoria'); return false; }
-      if (!jefe.jfFechaNac) { toast.error('La fecha de nacimiento es obligatoria'); return false; }
-      if (!jefe.jfGenero) { toast.error('El género del jefe es obligatorio'); return false; }
-      if (!jefe.jfNacionalidad) { toast.error('La nacionalidad es obligatoria'); return false; }
+      if (!jefe.nombre) { toast.error('El nombre del jefe es obligatorio'); return false; }
+      if (!jefe.cedula) { toast.error('La cédula del jefe es obligatoria'); return false; }
+      if (!jefe.fechaNacimiento) { toast.error('La fecha de nacimiento es obligatoria'); return false; }
+      if (!jefe.genero) { toast.error('El género del jefe es obligatorio'); return false; }
+      if (!jefe.nacionalidad) { toast.error('La nacionalidad es obligatoria'); return false; }
     }
     return true;
   };
 
-  const nextStep = () => {
-    if (validateStep(step)) setStep(step + 1);
-  };
-
+  const nextStep = () => { if (validateStep(step)) setStep(step + 1); };
   const prevStep = () => setStep(step - 1);
+
+  // Construir payload normalizado para el API
+  const buildPayload = () => {
+    // Servicios: solo incluir los que tienen valor
+    const serviciosArr = Object.entries(servicios)
+      .filter(([, estado]) => estado.trim() !== '')
+      .map(([tipo, estado]) => ({ tipo: tipo as any, estado }));
+
+    return {
+      calleId,
+      vivienda: {
+        direccion: vivienda.direccion,
+        tipo: vivienda.tipo,
+        tenencia: vivienda.tenencia,
+        materialConstruccion: vivienda.materialConstruccion || null,
+        cantidadHabitaciones: vivienda.cantidadHabitaciones || null,
+        cantidadBanos: vivienda.cantidadBanos || null,
+        observaciones: vivienda.observaciones || null,
+      },
+      servicios: serviciosArr,
+      programaSocial: {
+        carnetPatria: programas.carnetPatria,
+        codigoCarnetPatria: programas.codigoCarnetPatria || null,
+        recibeClap: programas.recibeClap,
+        otrosBeneficios: programas.otrosBeneficios || null,
+        ingresoFamiliar: programas.ingresoFamiliar || null,
+      },
+      jefe: {
+        nombre: jefe.nombre,
+        cedula: jefe.cedula || null,
+        nacionalidad: jefe.nacionalidad,
+        fechaNacimiento: jefe.fechaNacimiento,
+        genero: jefe.genero,
+        estadoCivil: jefe.estadoCivil || null,
+        telefono: jefe.telefono || null,
+        email: jefe.email || null,
+        escolaridad: jefe.escolaridad || null,
+        ocupacion: jefe.ocupacion || null,
+        lugarTrabajo: jefe.lugarTrabajo || null,
+        enfermedad: jefe.enfermedad || null,
+        pensionado: jefe.pensionado,
+        discapacidad: jefe.discapacidad,
+        tipoDiscapacidad: jefe.tipoDiscapacidad || null,
+        embarazada: jefe.embarazada,
+        lactancia: jefe.lactancia,
+      },
+      miembros: miembros
+        .filter((m) => m.nombre.trim() !== '')
+        .map((m) => ({
+          nombre: m.nombre,
+          cedula: m.cedula || null,
+          nacionalidad: m.nacionalidad,
+          fechaNacimiento: m.fechaNacimiento,
+          genero: m.genero,
+          parentesco: m.parentesco || null,
+          estadoCivil: m.estadoCivil || null,
+          escolaridad: m.escolaridad || null,
+          ocupacion: m.ocupacion || null,
+          lugarTrabajo: m.lugarTrabajo || null,
+          pensionado: m.pensionado,
+          discapacidad: m.discapacidad,
+          tipoDiscapacidad: m.tipoDiscapacidad || null,
+          embarazada: m.embarazada,
+          lactancia: m.lactancia,
+        })),
+    };
+  };
 
   const handleSubmit = async () => {
     if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
@@ -214,14 +255,7 @@ export default function CensarPage() {
     try {
       const res = await apiFetch('/api/familias', {
         method: 'POST',
-        body: JSON.stringify({
-          calleId,
-          ...vivienda,
-          ...servicios,
-          ...programas,
-          ...jefe,
-          miembros: miembros.filter((m) => m.nombre.trim() !== ''),
-        }),
+        body: JSON.stringify(buildPayload()),
       });
 
       if (!res.ok) {
@@ -229,11 +263,7 @@ export default function CensarPage() {
         throw new Error(err.error);
       }
 
-      try {
-        sessionStorage.removeItem(CENSO_DRAFT_KEY);
-      } catch {
-        /* ignore */
-      }
+      try { sessionStorage.removeItem(CENSO_DRAFT_KEY); } catch { /* ignore */ }
 
       toast.success('¡Familia censada exitosamente!');
       const role = session?.user?.role;
@@ -267,14 +297,10 @@ export default function CensarPage() {
     { n: 4, label: 'Servicios', icon: FiZap },
   ];
 
-  // Helper para label obligatorio
-  const Req = ({ children, error }: { children: React.ReactNode; error?: any }) => (
-    <label className="input-label">
-      {children} <span className="text-red-400">*</span>
-    </label>
+  const Req = ({ children }: { children: React.ReactNode }) => (
+    <label className="input-label">{children} <span className="text-red-400">*</span></label>
   );
-
-  const Opt = ({ children, error }: { children: React.ReactNode; error?: any }) => (
+  const Opt = ({ children }: { children: React.ReactNode }) => (
     <label className="input-label">{children}</label>
   );
 
@@ -305,8 +331,8 @@ export default function CensarPage() {
 
       {/* Selección de calle */}
       <div className="glass-card p-4 sm:p-5">
-        <Req error={errors.calleId}>Calle / Sector</Req>
-        <select value={calleId} onChange={(e) => { setCalleId(e.target.value); clearError('calleId'); }} className={`select-field ${errors.calleId ? 'border-red-500 bg-red-900/20 shadow-inner shadow-red-500/20' : ''}`} required>
+        <Req>Calle / Sector</Req>
+        <select value={calleId} onChange={(e) => { setCalleId(e.target.value); clearError('calleId'); }} className="select-field" required>
           <option value="">Seleccionar calle...</option>
           {calles.map((c) => (
             <option key={c.id} value={c.id}>
@@ -325,22 +351,22 @@ export default function CensarPage() {
           </h3>
 
           <div>
-            <Req error={errors.direccion}>Dirección Exacta</Req>
+            <Req>Dirección Exacta</Req>
             <input value={vivienda.direccion} onChange={(e) => setVivienda({ ...vivienda, direccion: e.target.value })}
               className="input-field" placeholder="Ej: Casa #15, Calle Principal, frente a la bodega" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Req error={errors.tipoVivienda}>Tipo de Vivienda</Req>
-              <select value={vivienda.tipoVivienda} onChange={(e) => { setVivienda({ ...vivienda, tipoVivienda: e.target.value }); clearError('tipoVivienda'); }} className={`select-field ${errors.tipoVivienda ? 'border-red-500 bg-red-900/20' : ''}`}>
+              <Req>Tipo de Vivienda</Req>
+              <select value={vivienda.tipo} onChange={(e) => setVivienda({ ...vivienda, tipo: e.target.value })} className="select-field">
                 <option value="">Seleccionar...</option>
                 {tiposVivienda.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <Req error={errors.tenencia}>Tenencia</Req>
-              <select value={vivienda.tenencia} onChange={(e) => { setVivienda({ ...vivienda, tenencia: e.target.value }); clearError('tenencia'); }} className={`select-field ${errors.tenencia ? 'border-red-500 bg-red-900/20' : ''}`}>
+              <Req>Tenencia</Req>
+              <select value={vivienda.tenencia} onChange={(e) => setVivienda({ ...vivienda, tenencia: e.target.value })} className="select-field">
                 <option value="">Seleccionar...</option>
                 {tiposTenencia.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
@@ -393,19 +419,19 @@ export default function CensarPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Req error={errors.jfNombre}>Nombre Completo</Req>
-              <input value={jefe.jfNombre} onChange={(e) => setJefe({ ...jefe, jfNombre: e.target.value })}
+              <Req>Nombre Completo</Req>
+              <input value={jefe.nombre} onChange={(e) => setJefe({ ...jefe, nombre: e.target.value })}
                 className="input-field" placeholder="Nombre y apellido" />
             </div>
             <div>
-              <Req error={errors.jfCedula}>Cédula de Identidad</Req>
+              <Req>Cédula de Identidad</Req>
               <div className="flex gap-2">
-                <select value={jefe.jfNacionalidad} onChange={(e) => setJefe({ ...jefe, jfNacionalidad: e.target.value })}
+                <select value={jefe.nacionalidad} onChange={(e) => setJefe({ ...jefe, nacionalidad: e.target.value })}
                   className="select-field w-20 flex-shrink-0">
                   <option value="V">V</option>
                   <option value="E">E</option>
                 </select>
-                <input value={jefe.jfCedula} onChange={(e) => setJefe({ ...jefe, jfCedula: e.target.value })}
+                <input value={jefe.cedula} onChange={(e) => setJefe({ ...jefe, cedula: e.target.value })}
                   className="input-field flex-1" placeholder="12345678" />
               </div>
             </div>
@@ -413,12 +439,12 @@ export default function CensarPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <Req error={errors.jfFechaNac}>Fecha de Nacimiento</Req>
-              <input type="date" value={jefe.jfFechaNac} onChange={(e) => { setJefe({ ...jefe, jfFechaNac: e.target.value }); clearError('jfFechaNac'); }} className={`input-field ${errors.jfFechaNac ? 'border-red-500 bg-red-900/20' : ''}`} />
+              <Req>Fecha de Nacimiento</Req>
+              <input type="date" value={jefe.fechaNacimiento} onChange={(e) => setJefe({ ...jefe, fechaNacimiento: e.target.value })} className="input-field" />
             </div>
             <div>
-              <Req error={errors.jfGenero}>Género</Req>
-              <select value={jefe.jfGenero} onChange={(e) => { setJefe({ ...jefe, jfGenero: e.target.value }); clearError('jfGenero'); }} className={`select-field ${errors.jfGenero ? 'border-red-500 bg-red-900/20' : ''}`}>
+              <Req>Género</Req>
+              <select value={jefe.genero} onChange={(e) => setJefe({ ...jefe, genero: e.target.value })} className="select-field">
                 <option value="">Seleccionar...</option>
                 <option value="M">Masculino</option>
                 <option value="F">Femenino</option>
@@ -426,7 +452,7 @@ export default function CensarPage() {
             </div>
             <div>
               <Opt>Estado Civil</Opt>
-              <select value={jefe.jfEstadoCivil} onChange={(e) => setJefe({ ...jefe, jfEstadoCivil: e.target.value })} className="select-field">
+              <select value={jefe.estadoCivil} onChange={(e) => setJefe({ ...jefe, estadoCivil: e.target.value })} className="select-field">
                 <option value="">Seleccionar...</option>
                 {estadosCiviles.map((e) => <option key={e} value={e}>{e}</option>)}
               </select>
@@ -436,12 +462,12 @@ export default function CensarPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Opt>Teléfono</Opt>
-              <input value={jefe.jfTelefono} onChange={(e) => setJefe({ ...jefe, jfTelefono: e.target.value })}
+              <input value={jefe.telefono} onChange={(e) => setJefe({ ...jefe, telefono: e.target.value })}
                 className="input-field" placeholder="0414-1234567" />
             </div>
             <div>
               <Opt>Email</Opt>
-              <input type="email" value={jefe.jfEmail} onChange={(e) => setJefe({ ...jefe, jfEmail: e.target.value })}
+              <input type="email" value={jefe.email} onChange={(e) => setJefe({ ...jefe, email: e.target.value })}
                 className="input-field" placeholder="correo@ejemplo.com" />
             </div>
           </div>
@@ -449,61 +475,61 @@ export default function CensarPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Opt>Nivel de Escolaridad</Opt>
-              <select value={jefe.jfEscolaridad} onChange={(e) => setJefe({ ...jefe, jfEscolaridad: e.target.value })} className="select-field">
+              <select value={jefe.escolaridad} onChange={(e) => setJefe({ ...jefe, escolaridad: e.target.value })} className="select-field">
                 <option value="">Seleccionar...</option>
                 {escolaridades.map((e) => <option key={e} value={e}>{e}</option>)}
               </select>
             </div>
             <div>
               <Opt>Ocupación</Opt>
-              <input value={jefe.jfOcupacion} onChange={(e) => setJefe({ ...jefe, jfOcupacion: e.target.value })}
+              <input value={jefe.ocupacion} onChange={(e) => setJefe({ ...jefe, ocupacion: e.target.value })}
                 className="input-field" placeholder="Ej: Comerciante, Docente..." />
             </div>
           </div>
 
           <div>
             <Opt>Lugar de Trabajo</Opt>
-            <input value={jefe.jfLugarTrabajo} onChange={(e) => setJefe({ ...jefe, jfLugarTrabajo: e.target.value })}
+            <input value={jefe.lugarTrabajo} onChange={(e) => setJefe({ ...jefe, lugarTrabajo: e.target.value })}
               className="input-field" placeholder="Nombre de empresa o lugar" />
           </div>
 
           <div>
             <Opt>Enfermedades Crónicas</Opt>
-            <input value={jefe.jfEnfermedad} onChange={(e) => setJefe({ ...jefe, jfEnfermedad: e.target.value })}
+            <input value={jefe.enfermedad} onChange={(e) => setJefe({ ...jefe, enfermedad: e.target.value })}
               className="input-field" placeholder="Ej: Diabetes, Hipertensión, Ninguna..." />
           </div>
 
           {/* Checkboxes */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3 pt-2 border-t border-slate-700/30">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={jefe.jfPensionado} onChange={(e) => setJefe({ ...jefe, jfPensionado: e.target.checked })}
+              <input type="checkbox" checked={jefe.pensionado} onChange={(e) => setJefe({ ...jefe, pensionado: e.target.checked })}
                 className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-blue-500 focus:ring-blue-500" />
               <span className="text-sm text-slate-400">Pensionado</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={jefe.jfDiscapacidad} onChange={(e) => setJefe({ ...jefe, jfDiscapacidad: e.target.checked })}
+              <input type="checkbox" checked={jefe.discapacidad} onChange={(e) => setJefe({ ...jefe, discapacidad: e.target.checked })}
                 className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-blue-500 focus:ring-blue-500" />
               <span className="text-sm text-slate-400">Discapacidad</span>
             </label>
-            {jefe.jfGenero === 'F' && (
+            {jefe.genero === 'F' && (
               <>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={jefe.jfEmbarazada} onChange={(e) => setJefe({ ...jefe, jfEmbarazada: e.target.checked })}
+                  <input type="checkbox" checked={jefe.embarazada} onChange={(e) => setJefe({ ...jefe, embarazada: e.target.checked })}
                     className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-pink-500 focus:ring-pink-500" />
                   <span className="text-sm text-slate-400">Embarazada</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={jefe.jfLactancia} onChange={(e) => setJefe({ ...jefe, jfLactancia: e.target.checked })}
+                  <input type="checkbox" checked={jefe.lactancia} onChange={(e) => setJefe({ ...jefe, lactancia: e.target.checked })}
                     className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-pink-500 focus:ring-pink-500" />
                   <span className="text-sm text-slate-400">Lactancia</span>
                 </label>
               </>
             )}
           </div>
-          {jefe.jfDiscapacidad && (
+          {jefe.discapacidad && (
             <div>
               <Opt>Tipo de Discapacidad</Opt>
-              <input value={jefe.jfTipoDiscapacidad} onChange={(e) => setJefe({ ...jefe, jfTipoDiscapacidad: e.target.value })}
+              <input value={jefe.tipoDiscapacidad} onChange={(e) => setJefe({ ...jefe, tipoDiscapacidad: e.target.value })}
                 className="input-field" placeholder="Tipo de discapacidad" />
             </div>
           )}
@@ -554,7 +580,7 @@ export default function CensarPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       <div>
                         <Req>Nombre Completo</Req>
-                        <input value={m.nombre} onChange={(e) => { updateMiembro(i, 'nombre', e.target.value); clearError(`miembro_${i}_nombre`); }} className={`input-field text-sm py-2 ${errors[`miembro_${i}_nombre`] ? 'border-red-500 bg-red-900/20' : ''}`} placeholder="Nombre y apellido" />
+                        <input value={m.nombre} onChange={(e) => updateMiembro(i, 'nombre', e.target.value)} className="input-field text-sm py-2" placeholder="Nombre y apellido" />
                       </div>
                       <div>
                         <Opt>Cédula</Opt>
@@ -568,11 +594,11 @@ export default function CensarPage() {
                       </div>
                       <div>
                         <Req>Fecha de Nacimiento</Req>
-                        <input type="date" value={m.fechaNacimiento} onChange={(e) => { updateMiembro(i, 'fechaNacimiento', e.target.value); clearError(`miembro_${i}_fechaNacimiento`); }} className={`input-field text-sm py-2 ${errors[`miembro_${i}_fechaNacimiento`] ? 'border-red-500 bg-red-900/20' : ''}`} />
+                        <input type="date" value={m.fechaNacimiento} onChange={(e) => updateMiembro(i, 'fechaNacimiento', e.target.value)} className="input-field text-sm py-2" />
                       </div>
                       <div>
                         <Req>Género</Req>
-                        <select value={m.genero} onChange={(e) => { updateMiembro(i, 'genero', e.target.value); clearError(`miembro_${i}_genero`); }} className={`select-field text-sm py-2 ${errors[`miembro_${i}_genero`] ? 'border-red-500 bg-red-900/20' : ''}`}>
+                        <select value={m.genero} onChange={(e) => updateMiembro(i, 'genero', e.target.value)} className="select-field text-sm py-2">
                           <option value="">Seleccionar...</option>
                           <option value="M">Masculino</option>
                           <option value="F">Femenino</option>
@@ -580,7 +606,7 @@ export default function CensarPage() {
                       </div>
                       <div>
                         <Req>Parentesco</Req>
-                        <select value={m.parentesco} onChange={(e) => { updateMiembro(i, 'parentesco', e.target.value); clearError(`miembro_${i}_parentesco`); }} className={`select-field text-sm py-2 ${errors[`miembro_${i}_parentesco`] ? 'border-red-500 bg-red-900/20' : ''}`}>
+                        <select value={m.parentesco} onChange={(e) => updateMiembro(i, 'parentesco', e.target.value)} className="select-field text-sm py-2">
                           <option value="">Seleccionar...</option>
                           {parentescos.map((p) => <option key={p} value={p}>{p}</option>)}
                         </select>
@@ -670,42 +696,42 @@ export default function CensarPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <Opt>Servicio de Agua</Opt>
-                <select value={servicios.servicioAgua} onChange={(e) => setServicios({ ...servicios, servicioAgua: e.target.value })} className="select-field">
+                <select value={servicios.AGUA} onChange={(e) => setServicios({ ...servicios, AGUA: e.target.value })} className="select-field">
                   <option value="">Seleccionar...</option>
                   {opcionesAgua.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div>
                 <Opt>Electricidad</Opt>
-                <select value={servicios.servicioElectricidad} onChange={(e) => setServicios({ ...servicios, servicioElectricidad: e.target.value })} className="select-field">
+                <select value={servicios.ELECTRICIDAD} onChange={(e) => setServicios({ ...servicios, ELECTRICIDAD: e.target.value })} className="select-field">
                   <option value="">Seleccionar...</option>
                   {opcionesElectricidad.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div>
                 <Opt>Gas</Opt>
-                <select value={servicios.servicioGas} onChange={(e) => setServicios({ ...servicios, servicioGas: e.target.value })} className="select-field">
+                <select value={servicios.GAS} onChange={(e) => setServicios({ ...servicios, GAS: e.target.value })} className="select-field">
                   <option value="">Seleccionar...</option>
                   {opcionesGas.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div>
                 <Opt>Internet</Opt>
-                <select value={servicios.servicioInternet} onChange={(e) => setServicios({ ...servicios, servicioInternet: e.target.value })} className="select-field">
+                <select value={servicios.INTERNET} onChange={(e) => setServicios({ ...servicios, INTERNET: e.target.value })} className="select-field">
                   <option value="">Seleccionar...</option>
                   {opcionesSiNo.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div>
                 <Opt>Aseo Urbano</Opt>
-                <select value={servicios.servicioAseo} onChange={(e) => setServicios({ ...servicios, servicioAseo: e.target.value })} className="select-field">
+                <select value={servicios.ASEO} onChange={(e) => setServicios({ ...servicios, ASEO: e.target.value })} className="select-field">
                   <option value="">Seleccionar...</option>
                   {opcionesAseo.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div>
                 <Opt>Telefonía</Opt>
-                <select value={servicios.servicioTelefono} onChange={(e) => setServicios({ ...servicios, servicioTelefono: e.target.value })} className="select-field">
+                <select value={servicios.TELEFONO} onChange={(e) => setServicios({ ...servicios, TELEFONO: e.target.value })} className="select-field">
                   <option value="">Seleccionar...</option>
                   {opcionesTelefono.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
@@ -783,7 +809,7 @@ export default function CensarPage() {
                 <p className="text-xs text-slate-500">Personas</p>
               </div>
               <div className="p-3 bg-slate-900/50 rounded-xl text-center">
-                <p className="text-lg font-bold text-emerald-400">{vivienda.tipoVivienda || '—'}</p>
+                <p className="text-lg font-bold text-emerald-400">{vivienda.tipo || '—'}</p>
                 <p className="text-xs text-slate-500">Vivienda</p>
               </div>
               <div className="p-3 bg-slate-900/50 rounded-xl text-center">
@@ -802,7 +828,7 @@ export default function CensarPage() {
               <FiChevronLeft className="w-4 h-4" /> Anterior
             </button>
             <button onClick={handleSubmit} disabled={loading}
-              className="btn-success flex items-center justify-center gap-2 py-3 px-8 text-base">
+              className="btn-primary flex items-center justify-center gap-2 py-3 px-8 text-lg disabled:opacity-50">
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (

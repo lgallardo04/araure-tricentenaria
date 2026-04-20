@@ -8,26 +8,30 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ─── Usuarios ────────────────────────────────────────────────
+
 model User {
-  id                String     @id @default(cuid())
-  name              String
-  email             String     @unique
-  password          String
-  role              UserRole   @default(JEFE_CALLE)
-  phone             String?
-  cedula            String?
-  active            Boolean    @default(true)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  comunidadId       String?
-  callesAsignadas   Calle[]
-  familiasAuditadas Familia[]  @relation("UsuarioAprobador")
-  comunidad         Comunidad? @relation("JefeComunidadUsuario", fields: [comunidadId], references: [id])
+  id              String     @id @default(cuid())
+  name            String
+  email           String     @unique
+  password        String
+  role            UserRole   @default(JEFE_CALLE)
+  phone           String?
+  cedula          String?
+  active          Boolean    @default(true)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  comunidadId     String?
+  callesAsignadas Calle[]
+  familiasAuditadas Familia[] @relation("UsuarioAprobador")
+  comunidad       Comunidad? @relation("JefeComunidadUsuario", fields: [comunidadId], references: [id])
 
   @@index([role])
   @@index([comunidadId])
   @@index([email])
 }
+
+// ─── Geografía ───────────────────────────────────────────────
 
 model Comunidad {
   id             String   @id @default(cuid())
@@ -57,72 +61,94 @@ model Calle {
   @@index([jefeCalleId])
 }
 
+// ─── Familia (tabla central, ahora liviana) ──────────────────
+
 model Familia {
-  id                   String          @id @default(cuid())
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  id              String          @id @default(cuid())
+  calleId         String
+  estado          EstadoFamilia   @default(PENDIENTE)
+  aprobadoPorId   String?
+  fechaAprobacion DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  calle           Calle           @relation(fields: [calleId], references: [id], onDelete: Cascade)
+  aprobadoPor     User?           @relation("UsuarioAprobador", fields: [aprobadoPorId], references: [id])
+
+  vivienda        Vivienda?
+  programaSocial  ProgramaSocial?
+  personas        Persona[]
+
+  @@index([calleId])
+  @@index([estado])
+}
+
+// ─── Vivienda (1:1 con Familia) ─────────────────────────────
+
+model Vivienda {
+  id                   String             @id @default(cuid())
+  familiaId            String             @unique
   direccion            String
-  tipoVivienda         String
+  tipo                 String
   tenencia             String
   materialConstruccion String?
   cantidadHabitaciones Int?
   cantidadBanos        Int?
   observaciones        String?
-  servicioAgua         String?
-  servicioElectricidad String?
-  servicioGas          String?
-  servicioInternet     String?
-  servicioAseo         String?
-  servicioTelefono     String?
-  carnetPatria         Boolean         @default(false)
-  codigoCarnetPatria   String?
-  recibeClap           Boolean         @default(false)
-  otrosBeneficios      String?
-  ingresoFamiliar      String?
-  jfNombre             String
-  jfCedula             String
-  jfNacionalidad       String          @default("V")
-  jfFechaNac           String
-  jfGenero             String
-  jfEstadoCivil        String?
-  jfTelefono           String?
-  jfEmail              String?
-  jfEscolaridad        String?
-  jfOcupacion          String?
-  jfLugarTrabajo       String?
-  jfPensionado         Boolean         @default(false)
-  jfDiscapacidad       Boolean         @default(false)
-  jfTipoDiscapacidad   String?
-  jfEnfermedad         String?
-  jfEmbarazada         Boolean         @default(false)
-  jfLactancia          Boolean         @default(false)
-  calleId              String
-  estado               EstadoFamilia   @default(PENDIENTE)
-  aprobadoPorId        String?
-  fechaAprobacion      DateTime?
-  aprobadoPor          User?           @relation("UsuarioAprobador", fields: [aprobadoPorId], references: [id])
-  calle                Calle           @relation(fields: [calleId], references: [id], onDelete: Cascade)
-  miembros             Miembro[]
-  registrosSalud       RegistroSalud[]
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
-  @@index([calleId])
-  @@index([jfCedula])
-  @@index([jfNombre])
+  familia              Familia            @relation(fields: [familiaId], references: [id], onDelete: Cascade)
+  servicios            ServicioVivienda[]
 }
 
-model Miembro {
+// ─── Servicios de Vivienda (N:1 con Vivienda) ───────────────
+
+model ServicioVivienda {
+  id          String       @id @default(cuid())
+  viviendaId  String
+  tipo        TipoServicio
+  estado      String
+
+  vivienda    Vivienda     @relation(fields: [viviendaId], references: [id], onDelete: Cascade)
+
+  @@unique([viviendaId, tipo])
+  @@index([viviendaId])
+}
+
+// ─── Programas Sociales (1:1 con Familia) ────────────────────
+
+model ProgramaSocial {
+  id                 String   @id @default(cuid())
+  familiaId          String   @unique
+  carnetPatria       Boolean  @default(false)
+  codigoCarnetPatria String?
+  recibeClap         Boolean  @default(false)
+  otrosBeneficios    String?
+  ingresoFamiliar    String?
+
+  familia            Familia  @relation(fields: [familiaId], references: [id], onDelete: Cascade)
+}
+
+// ─── Persona (unifica Jefe de Familia + Miembros) ────────────
+
+model Persona {
   id               String          @id @default(cuid())
+  familiaId        String
+  esJefe           Boolean         @default(false)
   nombre           String
   cedula           String?
   nacionalidad     String          @default("V")
   fechaNacimiento  String
   genero           String
-  parentesco       String
+  parentesco       String?
   estadoCivil      String?
+  telefono         String?
+  email            String?
   escolaridad      String?
   ocupacion        String?
   lugarTrabajo     String?
-  salud            String?
+  enfermedad       String?
   pensionado       Boolean         @default(false)
   discapacidad     Boolean         @default(false)
   tipoDiscapacidad String?
@@ -130,13 +156,17 @@ model Miembro {
   lactancia        Boolean         @default(false)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
-  familiaId        String
+
   familia          Familia         @relation(fields: [familiaId], references: [id], onDelete: Cascade)
   registrosSalud   RegistroSalud[]
 
   @@index([familiaId])
   @@index([cedula])
+  @@index([esJefe])
+  @@index([nombre])
 }
+
+// ─── Salud ───────────────────────────────────────────────────
 
 model Enfermedad {
   id          String          @id @default(cuid())
@@ -160,8 +190,7 @@ model Medicamento {
 
 model RegistroSalud {
   id            String       @id @default(cuid())
-  familiaId     String?
-  miembroId     String?
+  personaId     String
   enfermedadId  String
   medicamentoId String?
   dosis         String?
@@ -174,17 +203,18 @@ model RegistroSalud {
   observaciones String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
-  enfermedad    Enfermedad   @relation(fields: [enfermedadId], references: [id], onDelete: Cascade)
-  familia       Familia?     @relation(fields: [familiaId], references: [id], onDelete: Cascade)
-  medicamento   Medicamento? @relation(fields: [medicamentoId], references: [id])
-  miembro       Miembro?     @relation(fields: [miembroId], references: [id], onDelete: Cascade)
 
-  @@index([familiaId])
-  @@index([miembroId])
+  persona       Persona      @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  enfermedad    Enfermedad   @relation(fields: [enfermedadId], references: [id], onDelete: Cascade)
+  medicamento   Medicamento? @relation(fields: [medicamentoId], references: [id])
+
+  @@index([personaId])
   @@index([enfermedadId])
   @@index([medicamentoId])
   @@index([activo])
 }
+
+// ─── Enums ───────────────────────────────────────────────────
 
 enum UserRole {
   ADMIN
@@ -196,4 +226,13 @@ enum EstadoFamilia {
   PENDIENTE
   APROBADA
   RECHAZADA
+}
+
+enum TipoServicio {
+  AGUA
+  ELECTRICIDAD
+  GAS
+  INTERNET
+  ASEO
+  TELEFONO
 }

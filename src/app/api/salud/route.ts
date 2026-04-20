@@ -1,7 +1,6 @@
 // =============================================================
-// API: Registros de Salud
-// CRUD para vincular personas con enfermedades y medicamentos
-// Incluye filtros por comunidad, calle, enfermedad, medicamento
+// API: Registros de Salud — Normalizado
+// Vinculación Persona → Enfermedad/Medicamento (sin dual ref)
 // =============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,7 +10,7 @@ import { authOptions } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-// GET: Listar registros de salud (con filtros)
+// GET: Listar registros de salud
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -31,40 +30,28 @@ export async function GET(req: NextRequest) {
       where.activo = activo === 'true';
     }
 
-    // Filtro geográfico vía familia/miembro → calle → comunidad
+    // Filtro geográfico vía persona → familia → calle
     if (calleId || comunidadId) {
       const familiaFilter: any = {};
       if (calleId) familiaFilter.calleId = calleId;
       else if (comunidadId) familiaFilter.calle = { comunidadId };
-
-      where.OR = [
-        { familia: familiaFilter },
-        { miembro: { familia: familiaFilter } },
-      ];
+      where.persona = { familia: familiaFilter };
     }
 
     // Filtro por rol
     const role = session.user.role;
     if (role === 'JEFE_COMUNIDAD' && session.user.comunidadId) {
-      const comFilter = { calle: { comunidadId: session.user.comunidadId } };
-      if (!where.OR) {
-        where.OR = [
-          { familia: comFilter },
-          { miembro: { familia: comFilter } },
-        ];
+      if (!where.persona) {
+        where.persona = { familia: { calle: { comunidadId: session.user.comunidadId } } };
       }
     } else if (role === 'JEFE_CALLE') {
       const callesAsignadas = await prisma.calle.findMany({
         where: { jefeCalleId: session.user.id },
         select: { id: true },
       });
-      const calleIds = callesAsignadas.map(c => c.id);
-      const calleFilter = { calleId: { in: calleIds } };
-      if (!where.OR) {
-        where.OR = [
-          { familia: calleFilter },
-          { miembro: { familia: calleFilter } },
-        ];
+      const calleIds = callesAsignadas.map((c) => c.id);
+      if (!where.persona) {
+        where.persona = { familia: { calleId: { in: calleIds } } };
       }
     }
 
@@ -73,15 +60,12 @@ export async function GET(req: NextRequest) {
       include: {
         enfermedad: { select: { id: true, nombre: true, tipo: true } },
         medicamento: { select: { id: true, nombre: true, principioActivo: true, presentacion: true, unidad: true } },
-        familia: {
+        persona: {
           select: {
-            id: true, jfNombre: true, jfCedula: true,
-            calle: { select: { id: true, nombre: true, comunidad: { select: { id: true, nombre: true } } } },
-          },
-        },
-        miembro: {
-          select: {
-            id: true, nombre: true, cedula: true,
+            id: true,
+            nombre: true,
+            cedula: true,
+            esJefe: true,
             familia: {
               select: {
                 id: true,
@@ -108,19 +92,18 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
     const body = await req.json();
-    const { familiaId, miembroId, enfermedadId, medicamentoId, dosis, frecuencia, cantidadMes, fechaInicio, fechaFin, activo, severidad, observaciones } = body;
+    const { personaId, enfermedadId, medicamentoId, dosis, frecuencia, cantidadMes, fechaInicio, fechaFin, activo, severidad, observaciones } = body;
 
     if (!enfermedadId) {
       return NextResponse.json({ error: 'La enfermedad es requerida' }, { status: 400 });
     }
-    if (!familiaId && !miembroId) {
-      return NextResponse.json({ error: 'Debe indicar la persona (jefe de familia o miembro)' }, { status: 400 });
+    if (!personaId) {
+      return NextResponse.json({ error: 'Debe indicar la persona' }, { status: 400 });
     }
 
     const registro = await prisma.registroSalud.create({
       data: {
-        familiaId: familiaId || null,
-        miembroId: miembroId || null,
+        personaId,
         enfermedadId,
         medicamentoId: medicamentoId || null,
         dosis: dosis || null,

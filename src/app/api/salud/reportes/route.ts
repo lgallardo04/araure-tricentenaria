@@ -1,5 +1,5 @@
 // =============================================================
-// API: Reportes de Salud (BI - Business Intelligence)
+// API: Reportes de Salud (BI - Business Intelligence) — Normalizado
 // Genera datos estadísticos de salud para toma de decisiones
 // Calcula demanda de medicamentos por comunidad/calle
 // =============================================================
@@ -22,59 +22,31 @@ export async function GET(req: NextRequest) {
 
     const role = session.user.role;
 
-    // Construir filtro geográfico
-    const buildGeoFilter = () => {
-      const filter: any = {};
-      if (calleId) {
-        filter.OR = [
-          { familia: { calleId } },
-          { miembro: { familia: { calleId } } },
-        ];
-      } else if (comunidadId) {
-        filter.OR = [
-          { familia: { calle: { comunidadId } } },
-          { miembro: { familia: { calle: { comunidadId } } } },
-        ];
-      } else if (role === 'JEFE_COMUNIDAD' && session.user.comunidadId) {
-        filter.OR = [
-          { familia: { calle: { comunidadId: session.user.comunidadId } } },
-          { miembro: { familia: { calle: { comunidadId: session.user.comunidadId } } } },
-        ];
-      } else if (role === 'JEFE_CALLE') {
-        return null; // handled below
-      }
-      return filter;
-    };
+    // Construir filtro geográfico vía persona → familia → calle
+    const where: any = { activo: true };
 
-    let whereBase: any = buildGeoFilter() || {};
-
-    if (role === 'JEFE_CALLE') {
+    if (calleId) {
+      where.persona = { familia: { calleId } };
+    } else if (comunidadId) {
+      where.persona = { familia: { calle: { comunidadId } } };
+    } else if (role === 'JEFE_COMUNIDAD' && session.user.comunidadId) {
+      where.persona = { familia: { calle: { comunidadId: session.user.comunidadId } } };
+    } else if (role === 'JEFE_CALLE') {
       const callesAsignadas = await prisma.calle.findMany({
         where: { jefeCalleId: session.user.id },
         select: { id: true },
       });
-      const calleIds = callesAsignadas.map(c => c.id);
-      whereBase = {
-        OR: [
-          { familia: { calleId: { in: calleIds } } },
-          { miembro: { familia: { calleId: { in: calleIds } } } },
-        ],
-      };
+      const calleIds = callesAsignadas.map((c) => c.id);
+      where.persona = { familia: { calleId: { in: calleIds } } };
     }
 
     // Obtener todos los registros activos con relaciones
     const registros = await prisma.registroSalud.findMany({
-      where: { ...whereBase, activo: true },
+      where,
       include: {
         enfermedad: { select: { id: true, nombre: true, tipo: true } },
         medicamento: { select: { id: true, nombre: true, principioActivo: true, presentacion: true, unidad: true } },
-        familia: {
-          select: {
-            calleId: true,
-            calle: { select: { id: true, nombre: true, comunidadId: true, comunidad: { select: { id: true, nombre: true } } } },
-          },
-        },
-        miembro: {
+        persona: {
           select: {
             familia: {
               select: {
@@ -128,7 +100,7 @@ export async function GET(req: NextRequest) {
     // === 3. Distribución por comunidad ===
     const porComunidad: Record<string, { nombre: string; enfermedades: number; conMedicamento: number }> = {};
     for (const r of registros) {
-      const calle = r.familia?.calle || r.miembro?.familia?.calle;
+      const calle = r.persona?.familia?.calle;
       if (!calle) continue;
       const comId = calle.comunidadId;
       const comNombre = calle.comunidad.nombre.replace('Consejo Comunal ', '');
@@ -142,7 +114,7 @@ export async function GET(req: NextRequest) {
     // === 4. Distribución por calle ===
     const porCalle: Record<string, { nombre: string; comunidad: string; enfermedades: number; conMedicamento: number }> = {};
     for (const r of registros) {
-      const calle = r.familia?.calle || r.miembro?.familia?.calle;
+      const calle = r.persona?.familia?.calle;
       if (!calle) continue;
       if (!porCalle[calle.id]) {
         porCalle[calle.id] = {
@@ -174,7 +146,7 @@ export async function GET(req: NextRequest) {
     const demandaCruzada: Record<string, Record<string, { pacientes: number; cantidadMes: number }>> = {};
     for (const r of registros) {
       if (!r.medicamento) continue;
-      const calle = r.familia?.calle || r.miembro?.familia?.calle;
+      const calle = r.persona?.familia?.calle;
       if (!calle) continue;
       const comNombre = calle.comunidad.nombre.replace('Consejo Comunal ', '');
       const medNombre = r.medicamento.nombre;
@@ -189,8 +161,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       totalRegistros: registros.length,
-      totalConMedicamento: registros.filter(r => r.medicamentoId).length,
-      totalSinMedicamento: registros.filter(r => !r.medicamentoId).length,
+      totalConMedicamento: registros.filter((r) => r.medicamentoId).length,
+      totalSinMedicamento: registros.filter((r) => !r.medicamentoId).length,
       enfermedadesTop,
       medicamentosDemanda,
       porComunidad: Object.entries(porComunidad).map(([id, data]) => ({ id, ...data })),

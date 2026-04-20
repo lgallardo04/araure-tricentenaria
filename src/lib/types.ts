@@ -30,6 +30,48 @@ declare module 'next-auth/jwt' {
 // Tipos de la aplicación
 export type UserRole = 'ADMIN' | 'JEFE_COMUNIDAD' | 'JEFE_CALLE';
 
+export interface PersonaBasic {
+  id: string;
+  esJefe: boolean;
+  nombre: string;
+  cedula: string | null;
+  nacionalidad: string;
+  fechaNacimiento: string;
+  genero: string;
+  parentesco: string | null;
+  estadoCivil: string | null;
+  telefono: string | null;
+  email: string | null;
+  escolaridad: string | null;
+  ocupacion: string | null;
+  lugarTrabajo: string | null;
+  pensionado: boolean;
+  discapacidad: boolean;
+  tipoDiscapacidad: string | null;
+  embarazada: boolean;
+  lactancia: boolean;
+}
+
+export interface ViviendaBasic {
+  id: string;
+  direccion: string;
+  tipo: string;
+  tenencia: string;
+  materialConstruccion: string | null;
+  cantidadHabitaciones: number | null;
+  cantidadBanos: number | null;
+  observaciones: string | null;
+  servicios: { tipo: string; estado: string }[];
+}
+
+export interface ProgramaSocialBasic {
+  carnetPatria: boolean;
+  codigoCarnetPatria: string | null;
+  recibeClap: boolean;
+  otrosBeneficios: string | null;
+  ingresoFamiliar: string | null;
+}
+
 export interface ComunidadWithCalles {
   id: string;
   nombre: string;

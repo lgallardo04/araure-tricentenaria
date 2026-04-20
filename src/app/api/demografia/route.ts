@@ -1,8 +1,6 @@
 // =============================================================
-// API: Demografía
-// Endpoint dedicado para análisis demográfico detallado
-// Segmentación: Niños, Niñas, Adolescentes, Adultos, Abuelos/as
-// Filtros jerárquicos: Comuna > Comunidad > Calle
+// API: Demografía — Normalizado
+// Usa tabla Persona unificada, sin duplicación jefe/miembros
 // =============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -19,9 +17,7 @@ function calcularEdad(fechaNac: string | null): number | null {
   if (isNaN(nacimiento.getTime())) return null;
   let edad = hoy.getFullYear() - nacimiento.getFullYear();
   const m = hoy.getMonth() - nacimiento.getMonth();
-  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
-    edad--;
-  }
+  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
   return edad;
 }
 
@@ -65,7 +61,6 @@ function clasificarPersona(conteo: DemografiaConteo, edad: number | null, genero
   }
 }
 
-// GET: Obtener análisis demográfico
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -74,12 +69,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const calleId = searchParams.get('calleId');
     const comunidadId = searchParams.get('comunidadId');
-
     const role = session.user.role;
     const userComunidadId = session.user.comunidadId;
-    const userId = session.user.id;
 
-    // Construir filtro base de familias
     const familiaWhere: any = {};
     if (calleId) {
       familiaWhere.calleId = calleId;
@@ -87,27 +79,22 @@ export async function GET(req: NextRequest) {
       familiaWhere.calle = { comunidadId };
     }
 
-    if (role === 'JEFE_COMUNIDAD' && userComunidadId) {
-      if (!calleId) {
-        familiaWhere.calle = { comunidadId: userComunidadId };
-      }
+    if (role === 'JEFE_COMUNIDAD' && userComunidadId && !calleId) {
+      familiaWhere.calle = { comunidadId: userComunidadId };
     }
 
     if (role === 'JEFE_CALLE') {
       const callesAsignadas = await prisma.calle.findMany({
-        where: { jefeCalleId: userId },
+        where: { jefeCalleId: session.user.id },
         select: { id: true },
       });
-      const calleIds = callesAsignadas.map((c) => c.id);
-      familiaWhere.calleId = calleId ? calleId : { in: calleIds };
+      familiaWhere.calleId = calleId ? calleId : { in: callesAsignadas.map((c) => c.id) };
     }
 
-    // Obtener familias con datos de calle y comunidad
+    // Query normalizada: Personas con ubicación
     const familias = await prisma.familia.findMany({
       where: familiaWhere,
       select: {
-        jfFechaNac: true,
-        jfGenero: true,
         calleId: true,
         calle: {
           select: {
@@ -117,25 +104,16 @@ export async function GET(req: NextRequest) {
             comunidad: { select: { id: true, nombre: true } },
           },
         },
-        miembros: {
-          select: {
-            fechaNacimiento: true,
-            genero: true,
-          },
+        personas: {
+          select: { fechaNacimiento: true, genero: true },
         },
       },
     });
 
-    // === Conteo global ===
     const global = crearConteoVacio();
-
-    // === Conteos por comunidad ===
     const porComunidad: Record<string, { nombre: string; conteo: DemografiaConteo }> = {};
-
-    // === Conteos por calle ===
     const porCalle: Record<string, { nombre: string; comunidadNombre: string; comunidadId: string; conteo: DemografiaConteo }> = {};
 
-    // === Pirámide poblacional (rangos de 5 años) ===
     const piramide: Record<string, { hombres: number; mujeres: number }> = {
       '0-4': { hombres: 0, mujeres: 0 },
       '5-9': { hombres: 0, mujeres: 0 },
@@ -181,47 +159,39 @@ export async function GET(req: NextRequest) {
     const procesarPersona = (
       edad: number | null,
       genero: string | null,
-      calleIdPersona: string,
+      calleIdP: string,
       calleNombre: string,
-      comunidadIdPersona: string,
+      comunidadIdP: string,
       comunidadNombre: string
     ) => {
       clasificarPersona(global, edad, genero);
       clasificarPiramide(edad, genero);
 
-      // Por comunidad
-      if (!porComunidad[comunidadIdPersona]) {
-        porComunidad[comunidadIdPersona] = {
+      if (!porComunidad[comunidadIdP]) {
+        porComunidad[comunidadIdP] = {
           nombre: comunidadNombre.replace('Consejo Comunal ', ''),
           conteo: crearConteoVacio(),
         };
       }
-      clasificarPersona(porComunidad[comunidadIdPersona].conteo, edad, genero);
+      clasificarPersona(porComunidad[comunidadIdP].conteo, edad, genero);
 
-      // Por calle
-      if (!porCalle[calleIdPersona]) {
-        porCalle[calleIdPersona] = {
+      if (!porCalle[calleIdP]) {
+        porCalle[calleIdP] = {
           nombre: calleNombre,
           comunidadNombre: comunidadNombre.replace('Consejo Comunal ', ''),
-          comunidadId: comunidadIdPersona,
+          comunidadId: comunidadIdP,
           conteo: crearConteoVacio(),
         };
       }
-      clasificarPersona(porCalle[calleIdPersona].conteo, edad, genero);
+      clasificarPersona(porCalle[calleIdP].conteo, edad, genero);
     };
 
+    // Iteración uniforme sobre personas (sin distinción jefe/miembro)
     for (const familia of familias) {
-      const edadJefe = calcularEdad(familia.jfFechaNac);
-      procesarPersona(
-        edadJefe, familia.jfGenero,
-        familia.calleId, familia.calle.nombre,
-        familia.calle.comunidadId, familia.calle.comunidad.nombre
-      );
-
-      for (const miembro of familia.miembros) {
-        const edad = calcularEdad(miembro.fechaNacimiento);
+      for (const persona of familia.personas) {
+        const edad = calcularEdad(persona.fechaNacimiento);
         procesarPersona(
-          edad, miembro.genero,
+          edad, persona.genero,
           familia.calleId, familia.calle.nombre,
           familia.calle.comunidadId, familia.calle.comunidad.nombre
         );
@@ -230,12 +200,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       global,
-      porComunidad: Object.entries(porComunidad).map(([id, data]) => ({
-        id, ...data,
-      })),
-      porCalle: Object.entries(porCalle).map(([id, data]) => ({
-        id, ...data,
-      })),
+      porComunidad: Object.entries(porComunidad).map(([id, data]) => ({ id, ...data })),
+      porCalle: Object.entries(porCalle).map(([id, data]) => ({ id, ...data })),
       piramide,
     });
   } catch (error) {

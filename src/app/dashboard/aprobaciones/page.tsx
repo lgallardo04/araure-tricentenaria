@@ -8,17 +8,16 @@ import { FiCheck, FiX, FiClock, FiSettings } from 'react-icons/fi';
 
 interface FamiliaPendiente {
   id: string;
-  jfNombre: string;
-  jfCedula: string;
-  direccion: string;
   estado: string;
   createdAt: string;
+  vivienda: { direccion: string } | null;
+  personas: { nombre: string; cedula: string | null }[];
   calle: {
     nombre: string;
     jefeCalle: { name: string } | null;
     comunidad: { nombre: string };
   };
-  _count: { miembros: number };
+  _count: { personas: number };
 }
 
 export default function AprobacionesPage() {
@@ -61,6 +60,8 @@ export default function AprobacionesPage() {
       </div>
     );
   }
+
+  const getJefe = (f: FamiliaPendiente) => f.personas[0]; // API returns jefe first (where esJefe=true)
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -121,53 +122,56 @@ export default function AprobacionesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
-                {familias.map((f) => (
-                  <tr key={f.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="p-4">
-                      <p className="font-medium text-slate-200">{f.jfNombre}</p>
-                      <p className="text-xs text-slate-500">CI: {f.jfCedula}</p>
-                    </td>
-                    <td className="p-4 max-w-[200px] truncate">
-                      <p className="text-sm text-slate-300 truncate">{f.direccion}</p>
-                      <p className="text-xs text-blue-400 truncate">{f.calle.comunidad.nombre} - {f.calle.nombre}</p>
-                    </td>
-                    <td className="p-4">
-                      <span className="px-2 py-1 bg-slate-800 text-slate-300 rounded text-xs">
-                        {f.calle.jefeCalle?.name || 'Veedor'}
-                      </span>
-                    </td>
-                    <td className="p-4 text-slate-300">
-                      {f._count.miembros + 1}
-                    </td>
-                    <td className="p-4 text-sm text-slate-400">
-                      {new Date(f.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="p-4 text-right space-x-2">
-                      {f.estado === 'PENDIENTE' ? (
-                        <>
-                          <button 
-                            disabled={processingId === f.id}
-                            onClick={() => handleAprobacion(f.id, 'APROBADA')}
-                            className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-wait"
-                          >
-                            {processingId === f.id ? '...' : 'Aprobar'}
-                          </button>
-                          <button 
-                            disabled={processingId === f.id}
-                            onClick={() => handleAprobacion(f.id, 'RECHAZADA')}
-                            className="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-wait"
-                          >
-                            {processingId === f.id ? '...' : 'Rechazar'}
-                          </button>
-                        </>
-                      ) : (
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${f.estado === 'APROBADA' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-                          {f.estado}
+                {familias.map((f) => {
+                  const jefe = getJefe(f);
+                  return (
+                    <tr key={f.id} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="p-4">
+                        <p className="font-medium text-slate-200">{jefe?.nombre ?? '—'}</p>
+                        <p className="text-xs text-slate-500">CI: {jefe?.cedula ?? '—'}</p>
+                      </td>
+                      <td className="p-4 max-w-[200px] truncate">
+                        <p className="text-sm text-slate-300 truncate">{f.vivienda?.direccion ?? '—'}</p>
+                        <p className="text-xs text-blue-400 truncate">{f.calle.comunidad.nombre} - {f.calle.nombre}</p>
+                      </td>
+                      <td className="p-4">
+                        <span className="px-2 py-1 bg-slate-800 text-slate-300 rounded text-xs">
+                          {f.calle.jefeCalle?.name || 'Veedor'}
                         </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-4 text-slate-300">
+                        {f._count.personas}
+                      </td>
+                      <td className="p-4 text-sm text-slate-400">
+                        {new Date(f.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="p-4 text-right space-x-2">
+                        {f.estado === 'PENDIENTE' ? (
+                          <>
+                            <button 
+                              disabled={processingId === f.id}
+                              onClick={() => handleAprobacion(f.id, 'APROBADA')}
+                              className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-wait"
+                            >
+                              {processingId === f.id ? '...' : 'Aprobar'}
+                            </button>
+                            <button 
+                              disabled={processingId === f.id}
+                              onClick={() => handleAprobacion(f.id, 'RECHAZADA')}
+                              className="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-wait"
+                            >
+                              {processingId === f.id ? '...' : 'Rechazar'}
+                            </button>
+                          </>
+                        ) : (
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${f.estado === 'APROBADA' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                            {f.estado}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

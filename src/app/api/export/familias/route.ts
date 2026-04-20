@@ -1,5 +1,5 @@
 // =============================================================
-// Exportación CSV de familias (mismo alcance que GET /api/familias)
+// Exportación CSV de familias — Normalizado
 // =============================================================
 
 export const dynamic = 'force-dynamic';
@@ -48,7 +48,9 @@ export async function GET(req: NextRequest) {
       where,
       include: {
         calle: { include: { comunidad: true } },
-        miembros: true,
+        vivienda: { include: { servicios: true } },
+        programaSocial: true,
+        personas: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -56,24 +58,30 @@ export async function GET(req: NextRequest) {
     const lines: string[] = [COLUMNS.join(',')];
     for (const f of familias) {
       const com = f.calle.comunidad.nombre.replace('Consejo Comunal ', '');
-      const nMiembros = 1 + f.miembros.length;
+      const jefe = f.personas.find((p) => p.esJefe);
+      const nMiembros = f.personas.length;
+
+      // Buscar servicios por tipo
+      const getServicio = (tipo: string) =>
+        f.vivienda?.servicios.find((s) => s.tipo === tipo)?.estado || '';
+
       lines.push(
         [
           escapeCsvCell(com),
           escapeCsvCell(f.calle.nombre),
-          escapeCsvCell(f.direccion),
-          escapeCsvCell(f.tipoVivienda),
-          escapeCsvCell(f.tenencia),
-          escapeCsvCell(f.jfNombre),
-          escapeCsvCell(f.jfCedula),
-          escapeCsvCell(f.jfTelefono),
+          escapeCsvCell(f.vivienda?.direccion || ''),
+          escapeCsvCell(f.vivienda?.tipo || ''),
+          escapeCsvCell(f.vivienda?.tenencia || ''),
+          escapeCsvCell(jefe?.nombre || ''),
+          escapeCsvCell(jefe?.cedula),
+          escapeCsvCell(jefe?.telefono),
           String(nMiembros),
-          escapeCsvCell(f.servicioAgua),
-          escapeCsvCell(f.servicioElectricidad),
-          escapeCsvCell(f.servicioGas),
-          escapeCsvCell(f.servicioInternet),
-          f.carnetPatria ? 'Sí' : 'No',
-          f.recibeClap ? 'Sí' : 'No',
+          escapeCsvCell(getServicio('AGUA')),
+          escapeCsvCell(getServicio('ELECTRICIDAD')),
+          escapeCsvCell(getServicio('GAS')),
+          escapeCsvCell(getServicio('INTERNET')),
+          f.programaSocial?.carnetPatria ? 'Sí' : 'No',
+          f.programaSocial?.recibeClap ? 'Sí' : 'No',
         ].join(',')
       );
     }

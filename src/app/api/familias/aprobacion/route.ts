@@ -21,12 +21,18 @@ export async function GET(req: NextRequest) {
           select: {
             nombre: true,
             jefeCalle: { select: { name: true } },
-            comunidad: { select: { nombre: true } }
-          }
+            comunidad: { select: { nombre: true } },
+          },
         },
-        _count: { select: { miembros: true } }
+        vivienda: { select: { direccion: true } },
+        personas: {
+          where: { esJefe: true },
+          select: { nombre: true, cedula: true },
+          take: 1,
+        },
+        _count: { select: { personas: true } },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     return NextResponse.json(familias);
@@ -52,10 +58,10 @@ export async function PATCH(req: NextRequest) {
 
     const updated = await prisma.familia.update({
       where: { id: familiaId },
-      data: { 
+      data: {
         estado: nuevoEstado as any,
         aprobadoPorId: session.user.id,
-        fechaAprobacion: new Date()
+        fechaAprobacion: new Date(),
       },
     });
 

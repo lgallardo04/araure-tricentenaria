@@ -1,6 +1,6 @@
 // =============================================================
 // API: Familias
-// CRUD para familias censadas (formulario expandido con campos obligatorios)
+// CRUD normalizado — Vivienda, Personas, Servicios, Programas
 // =============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,6 +11,22 @@ import { authOptions } from '@/lib/auth';
 import { familiaCreateSchema, familiaUpdateSchema } from '@/lib/validations/familia';
 import { buildFamiliaListWhere } from '@/lib/familia-list-scope';
 import { sendAdminNotification } from '@/lib/email';
+
+// Includes reutilizables para las queries
+const familiaFullInclude = {
+  calle: {
+    select: {
+      id: true,
+      nombre: true,
+      comunidad: { select: { id: true, nombre: true } },
+    },
+  },
+  vivienda: {
+    include: { servicios: true },
+  },
+  programaSocial: true,
+  personas: { orderBy: [{ esJefe: 'desc' as const }, { createdAt: 'asc' as const }] },
+};
 
 async function assertFamiliaAccess(session: Session, familiaId: string) {
   const familia = await prisma.familia.findUnique({
@@ -39,7 +55,7 @@ async function assertFamiliaAccess(session: Session, familiaId: string) {
   return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 }
 
-// GET: Listar familias (con filtros)
+// GET: Listar familias
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -58,16 +74,7 @@ export async function GET(req: NextRequest) {
     const familias = await prisma.familia.findMany({
       where,
       take: 200,
-      include: {
-        calle: {
-          select: {
-            id: true,
-            nombre: true,
-            comunidad: { select: { id: true, nombre: true } },
-          },
-        },
-        miembros: true,
-      },
+      include: familiaFullInclude,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -78,7 +85,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: Crear familia con miembros (censo completo)
+// POST: Crear familia (censo completo, normalizado)
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -94,22 +101,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const body = parsed.data;
-    const {
-      calleId, direccion, tipoVivienda, tenencia, materialConstruccion,
-      cantidadHabitaciones, cantidadBanos, observaciones,
-      servicioAgua, servicioElectricidad, servicioGas, servicioInternet,
-      servicioAseo, servicioTelefono,
-      carnetPatria, codigoCarnetPatria, recibeClap, otrosBeneficios,
-      ingresoFamiliar,
-      jfNombre, jfCedula, jfNacionalidad, jfFechaNac, jfGenero, jfEstadoCivil,
-      jfTelefono, jfEmail, jfEscolaridad, jfOcupacion, jfLugarTrabajo,
-      jfPensionado, jfDiscapacidad, jfTipoDiscapacidad, jfEnfermedad,
-      jfEmbarazada, jfLactancia,
-      miembros,
-    } = body;
 
-    // Verificar acceso: Jefes de Calle solo pueden censar en sus calles asignadas
+    const { calleId, vivienda, servicios, programaSocial, jefe, miembros } = parsed.data;
+
+    // Verificar acceso
     const role = session.user.role;
     if (role === 'JEFE_CALLE') {
       const calle = await prisma.calle.findUnique({ where: { id: calleId } });
@@ -117,8 +112,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'No tiene acceso a esta calle' }, { status: 403 });
       }
     }
-
-    // Jefe de Comunidad solo puede censar en calles de su comunidad
     if (role === 'JEFE_COMUNIDAD') {
       const calle = await prisma.calle.findUnique({ where: { id: calleId } });
       if (!calle || calle.comunidadId !== session.user.comunidadId) {
@@ -126,62 +119,129 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Crear familia con miembros en una transacción
-    const familia = await prisma.familia.create({
-      data: {
-        calleId, direccion, tipoVivienda, tenencia, materialConstruccion,
-        cantidadHabitaciones: cantidadHabitaciones
-          ? parseInt(String(cantidadHabitaciones), 10)
-          : null,
-        cantidadBanos: cantidadBanos ? parseInt(String(cantidadBanos), 10) : null,
-        observaciones,
-        servicioAgua, servicioElectricidad, servicioGas, servicioInternet,
-        servicioAseo, servicioTelefono,
-        carnetPatria: carnetPatria || false,
-        codigoCarnetPatria,
-        recibeClap: recibeClap || false,
-        otrosBeneficios,
-        ingresoFamiliar,
-        jfNombre, jfCedula, jfNacionalidad: jfNacionalidad || 'V',
-        jfFechaNac, jfGenero, jfEstadoCivil,
-        jfTelefono, jfEmail, jfEscolaridad, jfOcupacion, jfLugarTrabajo,
-        jfPensionado: jfPensionado || false,
-        jfDiscapacidad: jfDiscapacidad || false,
-        jfTipoDiscapacidad,
-        jfEnfermedad,
-        jfEmbarazada: jfEmbarazada || false,
-        jfLactancia: jfLactancia || false,
-        miembros: miembros && miembros.length > 0
-          ? {
-              create: miembros.filter((m: any) => m.nombre?.trim()).map((m: any) => ({
-                nombre: m.nombre,
-                cedula: m.cedula || null,
-                nacionalidad: m.nacionalidad || 'V',
-                fechaNacimiento: m.fechaNacimiento,
-                genero: m.genero,
-                parentesco: m.parentesco,
-                estadoCivil: m.estadoCivil || null,
-                escolaridad: m.escolaridad || null,
-                ocupacion: m.ocupacion || null,
-                lugarTrabajo: m.lugarTrabajo || null,
-                salud: m.salud || null,
-                pensionado: m.pensionado || false,
-                discapacidad: m.discapacidad || false,
-                tipoDiscapacidad: m.tipoDiscapacidad || null,
-                embarazada: m.embarazada || false,
-                lactancia: m.lactancia || false,
-              })),
-            }
-          : undefined,
-      },
-      include: { miembros: true },
+    // Transacción atómica para crear todo
+    const familia = await prisma.$transaction(async (tx) => {
+      // 1. Familia base
+      const fam = await tx.familia.create({
+        data: { calleId },
+      });
+
+      // 2. Vivienda
+      await tx.vivienda.create({
+        data: {
+          familiaId: fam.id,
+          direccion: vivienda.direccion,
+          tipo: vivienda.tipo,
+          tenencia: vivienda.tenencia,
+          materialConstruccion: vivienda.materialConstruccion || null,
+          cantidadHabitaciones: vivienda.cantidadHabitaciones
+            ? parseInt(String(vivienda.cantidadHabitaciones), 10)
+            : null,
+          cantidadBanos: vivienda.cantidadBanos
+            ? parseInt(String(vivienda.cantidadBanos), 10)
+            : null,
+          observaciones: vivienda.observaciones || null,
+        },
+      });
+
+      // 3. Servicios de vivienda
+      if (servicios && servicios.length > 0) {
+        const viv = await tx.vivienda.findUnique({ where: { familiaId: fam.id } });
+        if (viv) {
+          await tx.servicioVivienda.createMany({
+            data: servicios.map((s) => ({
+              viviendaId: viv.id,
+              tipo: s.tipo,
+              estado: s.estado,
+            })),
+          });
+        }
+      }
+
+      // 4. Programas sociales
+      if (programaSocial) {
+        await tx.programaSocial.create({
+          data: {
+            familiaId: fam.id,
+            carnetPatria: programaSocial.carnetPatria || false,
+            codigoCarnetPatria: programaSocial.codigoCarnetPatria || null,
+            recibeClap: programaSocial.recibeClap || false,
+            otrosBeneficios: programaSocial.otrosBeneficios || null,
+            ingresoFamiliar: programaSocial.ingresoFamiliar || null,
+          },
+        });
+      }
+
+      // 5. Jefe de familia
+      await tx.persona.create({
+        data: {
+          familiaId: fam.id,
+          esJefe: true,
+          nombre: jefe.nombre,
+          cedula: jefe.cedula || null,
+          nacionalidad: jefe.nacionalidad || 'V',
+          fechaNacimiento: jefe.fechaNacimiento,
+          genero: jefe.genero,
+          parentesco: null,
+          estadoCivil: jefe.estadoCivil || null,
+          telefono: jefe.telefono || null,
+          email: jefe.email || null,
+          escolaridad: jefe.escolaridad || null,
+          ocupacion: jefe.ocupacion || null,
+          lugarTrabajo: jefe.lugarTrabajo || null,
+          enfermedad: jefe.enfermedad || null,
+          pensionado: jefe.pensionado || false,
+          discapacidad: jefe.discapacidad || false,
+          tipoDiscapacidad: jefe.tipoDiscapacidad || null,
+          embarazada: jefe.embarazada || false,
+          lactancia: jefe.lactancia || false,
+        },
+      });
+
+      // 6. Miembros adicionales
+      if (miembros && miembros.length > 0) {
+        const validMembers = miembros.filter((m) => m.nombre?.trim());
+        if (validMembers.length > 0) {
+          await tx.persona.createMany({
+            data: validMembers.map((m) => ({
+              familiaId: fam.id,
+              esJefe: false,
+              nombre: m.nombre,
+              cedula: m.cedula || null,
+              nacionalidad: m.nacionalidad || 'V',
+              fechaNacimiento: m.fechaNacimiento,
+              genero: m.genero,
+              parentesco: m.parentesco || null,
+              estadoCivil: m.estadoCivil || null,
+              telefono: m.telefono || null,
+              email: m.email || null,
+              escolaridad: m.escolaridad || null,
+              ocupacion: m.ocupacion || null,
+              lugarTrabajo: m.lugarTrabajo || null,
+              enfermedad: null,
+              pensionado: m.pensionado || false,
+              discapacidad: m.discapacidad || false,
+              tipoDiscapacidad: m.tipoDiscapacidad || null,
+              embarazada: m.embarazada || false,
+              lactancia: m.lactancia || false,
+            })),
+          });
+        }
+      }
+
+      // Retornar familia completa
+      return tx.familia.findUnique({
+        where: { id: fam.id },
+        include: familiaFullInclude,
+      });
     });
 
-    // Enviar alerta al Admin (Fire and forget, no interrumpe envío de respuesta)
+    // Notificación al admin (fire-and-forget)
+    const jefePersona = familia?.personas.find((p) => p.esJefe);
     sendAdminNotification({
       actionType: 'Nueva Familia Censada (Pendiente de Aprobación)',
-      details: `El usuario <b>${session.user.name}</b> (Rol: ${role}) acaba de ingresar al sistema el censo de la familia de <b>${jfNombre}</b> (Cédula: <b>${jfCedula}</b>).`
-    }).catch(e => console.error("Fallo enviando correo: ", e));
+      details: `El usuario <b>${session.user.name}</b> (Rol: ${role}) acaba de ingresar al sistema el censo de la familia de <b>${jefePersona?.nombre ?? '—'}</b> (Cédula: <b>${jefePersona?.cedula ?? '—'}</b>).`,
+    }).catch((e) => console.error('Fallo enviando correo: ', e));
 
     return NextResponse.json(familia, { status: 201 });
   } catch (error) {
@@ -204,68 +264,163 @@ export async function PUT(req: NextRequest) {
         { status: 400 }
       );
     }
-    const body = parsed.data;
-    const { id, miembros, cantidadHabitaciones, cantidadBanos, ...familiaData } = body;
 
-    // Parse numbers
-    if (cantidadHabitaciones !== undefined) {
-      (familiaData as Record<string, unknown>).cantidadHabitaciones = cantidadHabitaciones
-        ? parseInt(String(cantidadHabitaciones), 10)
-        : null;
-    }
-    if (cantidadBanos !== undefined) {
-      (familiaData as Record<string, unknown>).cantidadBanos = cantidadBanos
-        ? parseInt(String(cantidadBanos), 10)
-        : null;
-    }
+    const { id, calleId, vivienda, servicios, programaSocial, jefe, miembros } = parsed.data;
 
     const denied = await assertFamiliaAccess(session, id);
     if (denied) return denied;
 
-    // Actualizar datos de la familia e invalidar aprobación
-    const familia = await prisma.familia.update({
-      where: { id },
-      data: {
-        ...(familiaData as any),
-        estado: 'PENDIENTE' // Revertir al estado de revisión
-      },
-    });
+    await prisma.$transaction(async (tx) => {
+      // Actualizar calle y estado
+      await tx.familia.update({
+        where: { id },
+        data: {
+          ...(calleId ? { calleId } : {}),
+          estado: 'PENDIENTE',
+        },
+      });
 
-    // Si se enviaron miembros, reemplazar todos
-    if (miembros) {
-      await prisma.miembro.deleteMany({ where: { familiaId: id } });
-      if (miembros.length > 0) {
-        await prisma.miembro.createMany({
-          data: miembros.filter((m: any) => m.nombre?.trim()).map((m: any) => ({
+      // Actualizar vivienda
+      if (vivienda) {
+        await tx.vivienda.upsert({
+          where: { familiaId: id },
+          update: {
+            ...(vivienda.direccion ? { direccion: vivienda.direccion } : {}),
+            ...(vivienda.tipo ? { tipo: vivienda.tipo } : {}),
+            ...(vivienda.tenencia ? { tenencia: vivienda.tenencia } : {}),
+            materialConstruccion: vivienda.materialConstruccion ?? undefined,
+            cantidadHabitaciones: vivienda.cantidadHabitaciones !== undefined
+              ? vivienda.cantidadHabitaciones ? parseInt(String(vivienda.cantidadHabitaciones), 10) : null
+              : undefined,
+            cantidadBanos: vivienda.cantidadBanos !== undefined
+              ? vivienda.cantidadBanos ? parseInt(String(vivienda.cantidadBanos), 10) : null
+              : undefined,
+            observaciones: vivienda.observaciones ?? undefined,
+          },
+          create: {
             familiaId: id,
-            nombre: m.nombre,
-            cedula: m.cedula || null,
-            nacionalidad: m.nacionalidad || 'V',
-            fechaNacimiento: m.fechaNacimiento,
-            genero: m.genero,
-            parentesco: m.parentesco,
-            estadoCivil: m.estadoCivil || null,
-            escolaridad: m.escolaridad || null,
-            ocupacion: m.ocupacion || null,
-            lugarTrabajo: m.lugarTrabajo || null,
-            salud: m.salud || null,
-            pensionado: m.pensionado || false,
-            discapacidad: m.discapacidad || false,
-            tipoDiscapacidad: m.tipoDiscapacidad || null,
-            embarazada: m.embarazada || false,
-            lactancia: m.lactancia || false,
-          })),
+            direccion: vivienda.direccion || '',
+            tipo: vivienda.tipo || '',
+            tenencia: vivienda.tenencia || '',
+            materialConstruccion: vivienda.materialConstruccion || null,
+            cantidadHabitaciones: vivienda.cantidadHabitaciones
+              ? parseInt(String(vivienda.cantidadHabitaciones), 10) : null,
+            cantidadBanos: vivienda.cantidadBanos
+              ? parseInt(String(vivienda.cantidadBanos), 10) : null,
+            observaciones: vivienda.observaciones || null,
+          },
         });
       }
-    }
 
-    // Notificar alerta de modificación
+      // Reemplazar servicios
+      if (servicios) {
+        const viv = await tx.vivienda.findUnique({ where: { familiaId: id } });
+        if (viv) {
+          await tx.servicioVivienda.deleteMany({ where: { viviendaId: viv.id } });
+          if (servicios.length > 0) {
+            await tx.servicioVivienda.createMany({
+              data: servicios.map((s) => ({ viviendaId: viv.id, tipo: s.tipo, estado: s.estado })),
+            });
+          }
+        }
+      }
+
+      // Actualizar programas sociales
+      if (programaSocial) {
+        await tx.programaSocial.upsert({
+          where: { familiaId: id },
+          update: {
+            carnetPatria: programaSocial.carnetPatria ?? false,
+            codigoCarnetPatria: programaSocial.codigoCarnetPatria || null,
+            recibeClap: programaSocial.recibeClap ?? false,
+            otrosBeneficios: programaSocial.otrosBeneficios || null,
+            ingresoFamiliar: programaSocial.ingresoFamiliar || null,
+          },
+          create: {
+            familiaId: id,
+            carnetPatria: programaSocial.carnetPatria ?? false,
+            codigoCarnetPatria: programaSocial.codigoCarnetPatria || null,
+            recibeClap: programaSocial.recibeClap ?? false,
+            otrosBeneficios: programaSocial.otrosBeneficios || null,
+            ingresoFamiliar: programaSocial.ingresoFamiliar || null,
+          },
+        });
+      }
+
+      // Reemplazar jefe
+      if (jefe) {
+        await tx.persona.deleteMany({ where: { familiaId: id, esJefe: true } });
+        await tx.persona.create({
+          data: {
+            familiaId: id,
+            esJefe: true,
+            nombre: jefe.nombre,
+            cedula: jefe.cedula || null,
+            nacionalidad: jefe.nacionalidad || 'V',
+            fechaNacimiento: jefe.fechaNacimiento,
+            genero: jefe.genero,
+            parentesco: null,
+            estadoCivil: jefe.estadoCivil || null,
+            telefono: jefe.telefono || null,
+            email: jefe.email || null,
+            escolaridad: jefe.escolaridad || null,
+            ocupacion: jefe.ocupacion || null,
+            lugarTrabajo: jefe.lugarTrabajo || null,
+            enfermedad: jefe.enfermedad || null,
+            pensionado: jefe.pensionado || false,
+            discapacidad: jefe.discapacidad || false,
+            tipoDiscapacidad: jefe.tipoDiscapacidad || null,
+            embarazada: jefe.embarazada || false,
+            lactancia: jefe.lactancia || false,
+          },
+        });
+      }
+
+      // Reemplazar miembros
+      if (miembros) {
+        await tx.persona.deleteMany({ where: { familiaId: id, esJefe: false } });
+        const validMembers = miembros.filter((m) => m.nombre?.trim());
+        if (validMembers.length > 0) {
+          await tx.persona.createMany({
+            data: validMembers.map((m) => ({
+              familiaId: id,
+              esJefe: false,
+              nombre: m.nombre,
+              cedula: m.cedula || null,
+              nacionalidad: m.nacionalidad || 'V',
+              fechaNacimiento: m.fechaNacimiento,
+              genero: m.genero,
+              parentesco: m.parentesco || null,
+              estadoCivil: m.estadoCivil || null,
+              telefono: m.telefono || null,
+              email: m.email || null,
+              escolaridad: m.escolaridad || null,
+              ocupacion: m.ocupacion || null,
+              lugarTrabajo: m.lugarTrabajo || null,
+              enfermedad: null,
+              pensionado: m.pensionado || false,
+              discapacidad: m.discapacidad || false,
+              tipoDiscapacidad: m.tipoDiscapacidad || null,
+              embarazada: m.embarazada || false,
+              lactancia: m.lactancia || false,
+            })),
+          });
+        }
+      }
+    });
+
+    const updated = await prisma.familia.findUnique({
+      where: { id },
+      include: familiaFullInclude,
+    });
+
+    const jefePersona = updated?.personas.find((p) => p.esJefe);
     sendAdminNotification({
       actionType: 'Actualización y Auditoría Censal (Pendiente de Aprobación)',
-      details: `El usuario <b>${session.user.name}</b> (Rol: ${session.user.role}) acaba de ingresar o modificar información (incluidos miembros) para la familia con Cédula del Jefe: <b>${familia.jfCedula}</b>. El registro ha vuelto al estado pendiente de revisión.`
-    }).catch(e => console.error("Fallo enviando correo: ", e));
+      details: `El usuario <b>${session.user.name}</b> (Rol: ${session.user.role}) modificó la familia de <b>${jefePersona?.nombre ?? '—'}</b> (Cédula: ${jefePersona?.cedula ?? '—'}). Estado: pendiente de revisión.`,
+    }).catch((e) => console.error('Fallo enviando correo: ', e));
 
-    return NextResponse.json(familia);
+    return NextResponse.json(updated);
   } catch (error) {
     console.error('Error al actualizar familia:', error);
     return NextResponse.json({ error: 'Error al actualizar familia' }, { status: 500 });
@@ -285,12 +440,15 @@ export async function DELETE(req: NextRequest) {
     const denied = await assertFamiliaAccess(session, id);
     if (denied) return denied;
 
-    const familiaAEliminar = await prisma.familia.delete({ where: { id } });
+    // Obtener nombre del jefe antes de borrar
+    const jefe = await prisma.persona.findFirst({ where: { familiaId: id, esJefe: true } });
+
+    await prisma.familia.delete({ where: { id } });
 
     sendAdminNotification({
       actionType: 'Expulsión o Eliminación de Familia',
-      details: `El usuario <b>${session.user.name}</b> (Rol: ${session.user.role}) ha borrado la plantilla del registro censal de <b>${familiaAEliminar.jfNombre}</b> (Cédula: ${familiaAEliminar.jfCedula}).`
-    }).catch(e => console.error("Fallo enviando correo: ", e));
+      details: `El usuario <b>${session.user.name}</b> (Rol: ${session.user.role}) ha borrado el registro censal de <b>${jefe?.nombre ?? '—'}</b> (Cédula: ${jefe?.cedula ?? '—'}).`,
+    }).catch((e) => console.error('Fallo enviando correo: ', e));
 
     return NextResponse.json({ message: 'Familia eliminada' });
   } catch (error) {

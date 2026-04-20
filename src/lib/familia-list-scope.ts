@@ -68,11 +68,12 @@ export async function buildFamiliaListWhere(
     }
   }
 
+  // Búsqueda normalizada: buscar en la tabla Persona (jefes)
   if (search) {
     where.OR = [
-      { jfNombre: { contains: search, mode: 'insensitive' } },
-      { jfCedula: { contains: search, mode: 'insensitive' } },
-      { direccion: { contains: search, mode: 'insensitive' } },
+      { personas: { some: { esJefe: true, nombre: { contains: search, mode: 'insensitive' } } } },
+      { personas: { some: { esJefe: true, cedula: { contains: search, mode: 'insensitive' } } } },
+      { vivienda: { direccion: { contains: search, mode: 'insensitive' } } },
     ];
   }
 

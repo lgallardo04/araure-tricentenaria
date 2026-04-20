@@ -1,9 +1,9 @@
 // =============================================================
-// Seed de Base de Datos
-// Crea admin, jefes de comunidad, jefes de calle y datos de ejemplo
+// Seed de Base de Datos — Normalizado
+// Crea admin, jefes, comunidades, calles y datos de ejemplo
 // =============================================================
 
-import { PrismaClient, UserRole } from '@prisma/client';
+import { PrismaClient, UserRole, TipoServicio } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -12,7 +12,11 @@ async function main() {
   console.log('🌱 Iniciando seed de la base de datos...\n');
 
   // --- Limpiar datos existentes ---
-  await prisma.miembro.deleteMany();
+  await prisma.registroSalud.deleteMany();
+  await prisma.servicioVivienda.deleteMany();
+  await prisma.persona.deleteMany();
+  await prisma.programaSocial.deleteMany();
+  await prisma.vivienda.deleteMany();
   await prisma.familia.deleteMany();
   await prisma.calle.deleteMany();
   await prisma.user.deleteMany();
@@ -33,7 +37,7 @@ async function main() {
   });
   console.log('✅ Admin creado:', admin.email);
 
-  // --- Crear Comunidades (Consejos Comunales) ---
+  // --- Crear Comunidades ---
   const comunidadesData = [
     { nombre: 'Consejo Comunal Barrio Unión', descripcion: 'Sector norte de Araure', sector: 'Norte' },
     { nombre: 'Consejo Comunal La Paz', descripcion: 'Sector centro de Araure', sector: 'Centro' },
@@ -52,7 +56,7 @@ async function main() {
     console.log(`✅ Comunidad creada: ${created.nombre}`);
   }
 
-  // --- Crear Jefes de Comunidad (uno por comunidad) ---
+  // --- Crear Jefes de Comunidad ---
   const jefesComunidadData = [
     { name: 'María González', email: 'maria.gonzalez@comuna.com', phone: '0414-1000001', cedula: 'V-10000001' },
     { name: 'José Rodríguez', email: 'jose.rodriguez@comuna.com', phone: '0424-1000002', cedula: 'V-10000002' },
@@ -91,17 +95,13 @@ async function main() {
   const jefesCalle = [];
   for (const jData of jefesCalleData) {
     const j = await prisma.user.create({
-      data: {
-        ...jData,
-        password: jcallePassword,
-        role: UserRole.JEFE_CALLE,
-      },
+      data: { ...jData, password: jcallePassword, role: UserRole.JEFE_CALLE },
     });
     jefesCalle.push(j);
     console.log(`✅ Jefe de Calle: ${j.name}`);
   }
 
-  // --- Crear Calles para cada comunidad ---
+  // --- Crear Calles ---
   const callesNombres = [
     ['Calle Principal', 'Calle 1', 'Calle 2', 'Vereda La Cruz'],
     ['Calle Bolívar', 'Calle Sucre', 'Calle Miranda'],
@@ -128,7 +128,7 @@ async function main() {
       if (jefeAsignado) jefeCalleIndex++;
     }
   }
-  console.log(`✅ Calles creadas para todas las comunidades`);
+  console.log('✅ Calles creadas para todas las comunidades');
 
   console.log('\n🎉 Seed completado exitosamente!');
   console.log('\n📋 Credenciales:');

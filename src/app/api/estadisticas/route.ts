@@ -1,8 +1,6 @@
 // =============================================================
-// API: Estadísticas
-// Genera datos estadísticos expandidos para dashboard y reportes
-// Incluye demografía detallada: Niños, Niñas, Abuelos, Abuelas
-// Filtros jerárquicos: Comuna > Comunidad > Calle
+// API: Estadísticas — Normalizado
+// Usa tabla Persona unificada (elimina duplicación jefe/miembros)
 // =============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,7 +10,6 @@ import { authOptions } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-// Función auxiliar para calcular edad a partir de fecha de nacimiento
 function calcularEdad(fechaNac: string | null): number | null {
   if (!fechaNac) return null;
   const hoy = new Date();
@@ -20,13 +17,10 @@ function calcularEdad(fechaNac: string | null): number | null {
   if (isNaN(nacimiento.getTime())) return null;
   let edad = hoy.getFullYear() - nacimiento.getFullYear();
   const m = hoy.getMonth() - nacimiento.getMonth();
-  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
-    edad--;
-  }
+  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
   return edad;
 }
 
-// GET: Obtener estadísticas generales o filtradas
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -35,8 +29,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const calleId = searchParams.get('calleId');
     const comunidadId = searchParams.get('comunidadId');
+    const role = session.user.role;
 
-    // Construir filtro — ahora soporta calleId + comunidadId combinados
+    // Filtro de familias
     const familiaWhere: any = {};
     if (calleId) {
       familiaWhere.calleId = calleId;
@@ -44,48 +39,23 @@ export async function GET(req: NextRequest) {
       familiaWhere.calle = { comunidadId };
     }
 
-    const role = session.user.role;
-
-    // Si es Jefe de Comunidad, limitar a su comunidad
-    if (role === 'JEFE_COMUNIDAD') {
-      const userComunidadId = session.user.comunidadId;
-      if (userComunidadId) {
-        if (!calleId) {
-          familiaWhere.calle = { comunidadId: userComunidadId };
-        }
-      }
+    if (role === 'JEFE_COMUNIDAD' && session.user.comunidadId && !calleId) {
+      familiaWhere.calle = { comunidadId: session.user.comunidadId };
     }
 
-    // Si es Jefe de Calle, limitar a sus calles asignadas
     if (role === 'JEFE_CALLE') {
       const callesAsignadas = await prisma.calle.findMany({
         where: { jefeCalleId: session.user.id },
         select: { id: true },
       });
-      const calleIds = callesAsignadas.map((c) => c.id);
-      familiaWhere.calleId = calleId ? calleId : { in: calleIds };
+      familiaWhere.calleId = calleId ? calleId : { in: callesAsignadas.map((c) => c.id) };
     }
 
-    // Obtener las familias con solo los campos necesarios para estadísticas
+    // Query normalizada: Personas + Vivienda + Programas
     const familias = await prisma.familia.findMany({
       where: familiaWhere,
       select: {
-        jfFechaNac: true,
-        jfGenero: true,
-        jfPensionado: true,
-        jfDiscapacidad: true,
-        jfEmbarazada: true,
-        jfLactancia: true,
-        carnetPatria: true,
-        recibeClap: true,
-        tipoVivienda: true,
-        tenencia: true,
-        servicioAgua: true,
-        servicioElectricidad: true,
-        servicioGas: true,
-        servicioInternet: true,
-        servicioAseo: true,
-        miembros: {
+        personas: {
           select: {
             fechaNacimiento: true,
             genero: true,
@@ -95,10 +65,20 @@ export async function GET(req: NextRequest) {
             lactancia: true,
           },
         },
+        vivienda: {
+          select: {
+            tipo: true,
+            tenencia: true,
+            servicios: { select: { tipo: true, estado: true } },
+          },
+        },
+        programaSocial: {
+          select: { carnetPatria: true, recibeClap: true },
+        },
       },
     });
 
-    // === Contadores base ===
+    // Contadores
     let totalMiembros = 0;
     let totalMayores = 0;
     let totalMenores = 0;
@@ -111,16 +91,14 @@ export async function GET(req: NextRequest) {
     let totalCarnetPatria = 0;
     let totalClap = 0;
 
-    // === Contadores demográficos detallados ===
-    let totalNinos = 0;       // Género M, edad < 12
-    let totalNinas = 0;       // Género F, edad < 12
-    let totalAdolescentes = 0; // Edad 12-17
-    let totalAdultos = 0;     // Edad 18-59
-    let totalAbuelosHombres = 0; // Género M, edad >= 60
-    let totalAbuelasMujeres = 0; // Género F, edad >= 60
-    let totalTerceraEdad = 0;    // Edad >= 60
+    let totalNinos = 0;
+    let totalNinas = 0;
+    let totalAdolescentes = 0;
+    let totalAdultos = 0;
+    let totalAbuelosHombres = 0;
+    let totalAbuelasMujeres = 0;
+    let totalTerceraEdad = 0;
 
-    // Servicios
     const servicios = {
       agua: { tuberia: 0, cisterna: 0, pozo: 0, noTiene: 0 },
       electricidad: { si: 0, no: 0, irregular: 0 },
@@ -129,7 +107,6 @@ export async function GET(req: NextRequest) {
       aseo: { si: 0, no: 0, irregular: 0 },
     };
 
-    // Vivienda
     const tiposVivienda: Record<string, number> = {};
     const tiposTenencia: Record<string, number> = {};
 
@@ -149,121 +126,108 @@ export async function GET(req: NextRequest) {
       else edadesPorRango['61+']++;
     };
 
-    // Función para clasificar demográficamente
-    const clasificarDemografia = (edad: number | null, genero: string | null) => {
-      if (edad === null) return;
-      if (edad < 12) {
-        if (genero === 'M') totalNinos++;
-        else if (genero === 'F') totalNinas++;
-      } else if (edad < 18) {
-        totalAdolescentes++;
-      } else if (edad < 60) {
-        totalAdultos++;
-      } else {
-        totalTerceraEdad++;
-        if (genero === 'M') totalAbuelosHombres++;
-        else if (genero === 'F') totalAbuelasMujeres++;
-      }
-    };
-
     for (const familia of familias) {
-      // Contar jefe de familia
-      totalMiembros++;
-      const edadJefe = calcularEdad(familia.jfFechaNac);
-      if (edadJefe !== null) {
-        if (edadJefe >= 18) totalMayores++; else totalMenores++;
-      }
-      clasificarEdad(edadJefe);
-      clasificarDemografia(edadJefe, familia.jfGenero);
-      if (familia.jfGenero === 'M') totalHombres++;
-      else if (familia.jfGenero === 'F') totalMujeres++;
-      if (familia.jfPensionado) totalPensionados++;
-      if (familia.jfDiscapacidad) totalDiscapacidad++;
-      if (familia.jfEmbarazada) totalEmbarazadas++;
-      if (familia.jfLactancia) totalLactancia++;
-
       // Programas sociales (por familia)
-      if (familia.carnetPatria) totalCarnetPatria++;
-      if (familia.recibeClap) totalClap++;
+      if (familia.programaSocial?.carnetPatria) totalCarnetPatria++;
+      if (familia.programaSocial?.recibeClap) totalClap++;
 
-      // Tipo de vivienda
-      if (familia.tipoVivienda) {
-        tiposVivienda[familia.tipoVivienda] = (tiposVivienda[familia.tipoVivienda] || 0) + 1;
+      // Vivienda
+      if (familia.vivienda) {
+        if (familia.vivienda.tipo) {
+          tiposVivienda[familia.vivienda.tipo] = (tiposVivienda[familia.vivienda.tipo] || 0) + 1;
+        }
+        if (familia.vivienda.tenencia) {
+          tiposTenencia[familia.vivienda.tenencia] = (tiposTenencia[familia.vivienda.tenencia] || 0) + 1;
+        }
+
+        // Servicios normalizados — ya no se parsean strings manualmente
+        for (const srv of familia.vivienda.servicios) {
+          const est = srv.estado.toLowerCase();
+          switch (srv.tipo) {
+            case 'AGUA':
+              if (est.includes('tubería') || est.includes('tuberia') || est.includes('directa')) servicios.agua.tuberia++;
+              else if (est.includes('cisterna')) servicios.agua.cisterna++;
+              else if (est.includes('pozo')) servicios.agua.pozo++;
+              else if (est.includes('no')) servicios.agua.noTiene++;
+              break;
+            case 'ELECTRICIDAD':
+              if (est === 'sí' || est === 'si') servicios.electricidad.si++;
+              else if (est === 'no') servicios.electricidad.no++;
+              else if (est.includes('irregular')) servicios.electricidad.irregular++;
+              break;
+            case 'GAS':
+              if (est.includes('directo')) servicios.gas.directo++;
+              else if (est.includes('bombona')) servicios.gas.bombona++;
+              else if (est.includes('leña') || est.includes('lena')) servicios.gas.lena++;
+              else if (est.includes('no')) servicios.gas.noTiene++;
+              break;
+            case 'INTERNET':
+              if (est === 'sí' || est === 'si') servicios.internet.si++;
+              else servicios.internet.no++;
+              break;
+            case 'ASEO':
+              if (est === 'sí' || est === 'si') servicios.aseo.si++;
+              else if (est === 'no') servicios.aseo.no++;
+              else if (est.includes('irregular')) servicios.aseo.irregular++;
+              break;
+          }
+        }
       }
-      if (familia.tenencia) {
-        tiposTenencia[familia.tenencia] = (tiposTenencia[familia.tenencia] || 0) + 1;
-      }
 
-      // Servicios
-      const agua = familia.servicioAgua?.toLowerCase() || '';
-      if (agua.includes('tubería') || agua.includes('tuberia') || agua.includes('directa')) servicios.agua.tuberia++;
-      else if (agua.includes('cisterna')) servicios.agua.cisterna++;
-      else if (agua.includes('pozo')) servicios.agua.pozo++;
-      else if (agua.includes('no')) servicios.agua.noTiene++;
-
-      const elec = familia.servicioElectricidad?.toLowerCase() || '';
-      if (elec === 'sí' || elec === 'si') servicios.electricidad.si++;
-      else if (elec === 'no') servicios.electricidad.no++;
-      else if (elec.includes('irregular')) servicios.electricidad.irregular++;
-
-      const gas = familia.servicioGas?.toLowerCase() || '';
-      if (gas.includes('directo')) servicios.gas.directo++;
-      else if (gas.includes('bombona')) servicios.gas.bombona++;
-      else if (gas.includes('leña') || gas.includes('lena')) servicios.gas.lena++;
-      else if (gas.includes('no')) servicios.gas.noTiene++;
-
-      const inet = familia.servicioInternet?.toLowerCase() || '';
-      if (inet === 'sí' || inet === 'si') servicios.internet.si++;
-      else servicios.internet.no++;
-
-      const aseo = familia.servicioAseo?.toLowerCase() || '';
-      if (aseo === 'sí' || aseo === 'si') servicios.aseo.si++;
-      else if (aseo === 'no') servicios.aseo.no++;
-      else if (aseo.includes('irregular')) servicios.aseo.irregular++;
-
-      // Contar miembros
-      for (const miembro of familia.miembros) {
+      // Personas — iteración uniforme (jefe + miembros)
+      for (const persona of familia.personas) {
         totalMiembros++;
-        const edad = calcularEdad(miembro.fechaNacimiento);
+        const edad = calcularEdad(persona.fechaNacimiento);
         if (edad !== null) {
           if (edad >= 18) totalMayores++; else totalMenores++;
         }
         clasificarEdad(edad);
-        clasificarDemografia(edad, miembro.genero);
-        if (miembro.genero === 'M') totalHombres++;
-        else if (miembro.genero === 'F') totalMujeres++;
-        if (miembro.pensionado) totalPensionados++;
-        if (miembro.discapacidad) totalDiscapacidad++;
-        if (miembro.embarazada) totalEmbarazadas++;
-        if (miembro.lactancia) totalLactancia++;
+
+        if (persona.genero === 'M') totalHombres++;
+        else if (persona.genero === 'F') totalMujeres++;
+
+        if (persona.pensionado) totalPensionados++;
+        if (persona.discapacidad) totalDiscapacidad++;
+        if (persona.embarazada) totalEmbarazadas++;
+        if (persona.lactancia) totalLactancia++;
+
+        // Demografía detallada
+        if (edad !== null) {
+          if (edad < 12) {
+            if (persona.genero === 'M') totalNinos++;
+            else if (persona.genero === 'F') totalNinas++;
+          } else if (edad < 18) {
+            totalAdolescentes++;
+          } else if (edad < 60) {
+            totalAdultos++;
+          } else {
+            totalTerceraEdad++;
+            if (persona.genero === 'M') totalAbuelosHombres++;
+            else if (persona.genero === 'F') totalAbuelasMujeres++;
+          }
+        }
       }
     }
 
-    // Obtener conteos estructurales
+    // Conteos estructurales
     const comunidadWhere: any = {};
-    if (role === 'JEFE_COMUNIDAD') {
-      const userComunidadId = session.user.comunidadId;
-      if (userComunidadId) comunidadWhere.id = userComunidadId;
+    if (role === 'JEFE_COMUNIDAD' && session.user.comunidadId) {
+      comunidadWhere.id = session.user.comunidadId;
     }
-
     const totalComunidades = await prisma.comunidad.count({ where: comunidadWhere });
+
     const calleWhere: any = {};
     if (calleId) calleWhere.id = calleId;
-    if (role === 'JEFE_COMUNIDAD') {
-      const userComunidadId = session.user.comunidadId;
-      if (userComunidadId) calleWhere.comunidadId = userComunidadId;
+    if (role === 'JEFE_COMUNIDAD' && session.user.comunidadId) {
+      calleWhere.comunidadId = session.user.comunidadId;
     }
     const totalCalles = await prisma.calle.count({ where: calleWhere });
 
-    // Estadísticas por comunidad (para charts)
+    // Por comunidad (para charts)
     const comunidades = await prisma.comunidad.findMany({
       where: comunidadWhere,
       include: {
-        calles: {
-          include: {
-            _count: { select: { familias: true } },
-          },
-        },
+        calles: { include: { _count: { select: { familias: true } } } },
       },
     });
 
@@ -288,7 +252,6 @@ export async function GET(req: NextRequest) {
       totalClap,
       totalComunidades,
       totalCalles,
-      // Nuevos campos demográficos
       totalNinos,
       totalNinas,
       totalAdolescentes,
@@ -296,7 +259,6 @@ export async function GET(req: NextRequest) {
       totalAbuelosHombres,
       totalAbuelasMujeres,
       totalTerceraEdad,
-      // Charts
       edadesPorRango,
       poblacionPorComunidad,
       servicios,
