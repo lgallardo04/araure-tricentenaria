@@ -45,7 +45,12 @@ interface Stats {
   totalAbuelosHombres: number;
   totalAbuelasMujeres: number;
   totalTerceraEdad: number;
+  totalVotantes: number;
+  totalVotanEscuela: number;
+  totalBebesNinos: number;
+  totalBebesNinas: number;
   edadesPorRango: Record<string, number>;
+  edadesPorRangoGenero: Record<string, { hombres: number, mujeres: number }>;
   servicios: {
     agua: Record<string, number>;
     electricidad: Record<string, number>;
