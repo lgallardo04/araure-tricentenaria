@@ -1,6 +1,7 @@
 // =============================================================
 // API: Demografía — Normalizado
 // Usa tabla Persona unificada, sin duplicación jefe/miembros
+// Optimizado: fechaNacimiento como DateTime para cálculos nativos
 // =============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,14 +11,12 @@ import { authOptions } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-function calcularEdad(fechaNac: string | null): number | null {
+function calcularEdad(fechaNac: Date | null): number | null {
   if (!fechaNac) return null;
   const hoy = new Date();
-  const nacimiento = new Date(fechaNac);
-  if (isNaN(nacimiento.getTime())) return null;
-  let edad = hoy.getFullYear() - nacimiento.getFullYear();
-  const m = hoy.getMonth() - nacimiento.getMonth();
-  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
+  let edad = hoy.getFullYear() - fechaNac.getFullYear();
+  const m = hoy.getMonth() - fechaNac.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < fechaNac.getDate())) edad--;
   return edad;
 }
 
@@ -69,6 +68,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const calleId = searchParams.get('calleId');
     const comunidadId = searchParams.get('comunidadId');
+    const list = searchParams.get('list') === 'true';
+    const grupo = searchParams.get('grupo'); // ninos, adol, adult, abuelos
     const role = session.user.role;
     const userComunidadId = session.user.comunidadId;
 
@@ -105,10 +106,43 @@ export async function GET(req: NextRequest) {
           },
         },
         personas: {
-          select: { fechaNacimiento: true, genero: true },
+          select: { 
+            id: true, 
+            nombre: true, 
+            cedula: true, 
+            genero: true, 
+            fechaNacimiento: true,
+            parentesco: true,
+            esJefe: true
+          },
         },
       },
     });
+
+    if (list) {
+      const personasList: any[] = [];
+      for (const familia of familias) {
+        for (const persona of familia.personas) {
+          const edad = calcularEdad(persona.fechaNacimiento);
+          let match = false;
+          if (grupo === 'ninos' && edad !== null && edad < 12) match = true;
+          else if (grupo === 'adol' && edad !== null && edad >= 12 && edad < 18) match = true;
+          else if (grupo === 'adult' && edad !== null && edad >= 18 && edad < 60) match = true;
+          else if (grupo === 'abuelos' && edad !== null && edad >= 60) match = true;
+          else if (!grupo) match = true;
+
+          if (match) {
+            personasList.push({
+              ...persona,
+              edad,
+              calle: familia.calle.nombre,
+              comunidad: familia.calle.comunidad.nombre.replace('Consejo Comunal ', '')
+            });
+          }
+        }
+      }
+      return NextResponse.json(personasList);
+    }
 
     const global = crearConteoVacio();
     const porComunidad: Record<string, { nombre: string; conteo: DemografiaConteo }> = {};

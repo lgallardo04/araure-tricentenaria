@@ -14,7 +14,7 @@ import {
   CategoryScale, LinearScale, BarElement, Title, PointElement, LineElement
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
-import { FiUsers, FiFilter, FiMapPin, FiMap, FiBarChart2 } from 'react-icons/fi';
+import { FiUsers, FiFilter, FiMapPin, FiMap, FiBarChart2, FiX, FiUser, FiChevronRight } from 'react-icons/fi';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title, PointElement, LineElement);
 
@@ -43,6 +43,7 @@ interface Calle { id: string; nombre: string; comunidadId: string; comunidad: { 
 export default function DemografiaPage() {
   const [filtroComunidad, setFiltroComunidad] = useState('');
   const [filtroCalle, setFiltroCalle] = useState('');
+  const [filtroGrupo, setFiltroGrupo] = useState<'TODOS' | 'NINOS' | 'ADOL' | 'ADULT' | 'ABUELOS'>('TODOS');
 
   const { data: comunidades = [] } = useSWR<Comunidad[]>('/api/comunidades');
   const callesUrl = filtroComunidad ? `/api/calles?comunidadId=${filtroComunidad}` : null;
@@ -55,6 +56,18 @@ export default function DemografiaPage() {
   const apiUrl = `/api/demografia${params.toString() ? '?' + params.toString() : ''}`;
 
   const { data, error, isLoading, mutate } = useSWR<DemografiaResponse>(apiUrl);
+
+  // Fetch list of people when a group is focused
+  const groupMap: Record<string, string> = { NINOS: 'ninos', ADOL: 'adol', ADULT: 'adult', ABUELOS: 'abuelos' };
+  const listParams = new URLSearchParams();
+  if (filtroCalle) listParams.set('calleId', filtroCalle);
+  else if (filtroComunidad) listParams.set('comunidadId', filtroComunidad);
+  if (filtroGrupo !== 'TODOS') {
+    listParams.set('list', 'true');
+    listParams.set('grupo', groupMap[filtroGrupo]);
+  }
+  const listUrl = filtroGrupo !== 'TODOS' ? `/api/demografia?${listParams.toString()}` : null;
+  const { data: listData = [], isLoading: loadingList } = useSWR<any[]>(listUrl);
 
   if (error) {
     return (
@@ -228,27 +241,92 @@ export default function DemografiaPage() {
 
       {/* Indicadores principales */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="glass-card p-4 text-center border-l-4 border-l-blue-500">
+        <div 
+          onClick={() => setFiltroGrupo(filtroGrupo === 'NINOS' ? 'TODOS' : 'NINOS')}
+          className={`glass-card p-4 text-center border-l-4 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]
+            ${filtroGrupo === 'NINOS' ? 'border-l-blue-500 bg-blue-500/10' : 'border-l-blue-500/30'}`}
+        >
           <p className="text-2xl font-bold text-blue-400">{totalNinosNinas}</p>
-          <p className="text-xs text-slate-500 mt-1">👦👧 Niños y Niñas</p>
+          <p className="text-xs text-slate-500 mt-1 font-semibold uppercase tracking-wider">👦👧 Niños y Niñas</p>
           <p className="text-[10px] text-slate-600">Menores de 12 años</p>
         </div>
-        <div className="glass-card p-4 text-center border-l-4 border-l-indigo-500">
+
+        <div 
+          onClick={() => setFiltroGrupo(filtroGrupo === 'ADOL' ? 'TODOS' : 'ADOL')}
+          className={`glass-card p-4 text-center border-l-4 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]
+            ${filtroGrupo === 'ADOL' ? 'border-l-indigo-500 bg-indigo-500/10' : 'border-l-indigo-500/30'}`}
+        >
           <p className="text-2xl font-bold text-indigo-400">{totalAdolescentes}</p>
-          <p className="text-xs text-slate-500 mt-1">🧑 Adolescentes</p>
+          <p className="text-xs text-slate-500 mt-1 font-semibold uppercase tracking-wider">🧑 Adolescentes</p>
           <p className="text-[10px] text-slate-600">12 a 17 años</p>
         </div>
-        <div className="glass-card p-4 text-center border-l-4 border-l-green-500">
+        <div 
+          onClick={() => setFiltroGrupo(filtroGrupo === 'ADULT' ? 'TODOS' : 'ADULT')}
+          className={`glass-card p-4 text-center border-l-4 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]
+            ${filtroGrupo === 'ADULT' ? 'border-l-green-500 bg-green-500/10' : 'border-l-green-500/30'}`}
+        >
           <p className="text-2xl font-bold text-green-400">{totalAdultos}</p>
-          <p className="text-xs text-slate-500 mt-1">🧑‍💼 Adultos</p>
+          <p className="text-xs text-slate-500 mt-1 font-semibold uppercase tracking-wider">🧑‍💼 Adultos</p>
           <p className="text-[10px] text-slate-600">18 a 59 años</p>
         </div>
-        <div className="glass-card p-4 text-center border-l-4 border-l-amber-500">
+        <div 
+          onClick={() => setFiltroGrupo(filtroGrupo === 'ABUELOS' ? 'TODOS' : 'ABUELOS')}
+          className={`glass-card p-4 text-center border-l-4 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]
+            ${filtroGrupo === 'ABUELOS' ? 'border-l-amber-500 bg-amber-500/10' : 'border-l-amber-500/30'}`}
+        >
           <p className="text-2xl font-bold text-amber-400">{totalTerceraEdad}</p>
-          <p className="text-xs text-slate-500 mt-1">👴👵 Tercera Edad</p>
+          <p className="text-xs text-slate-500 mt-1 font-semibold uppercase tracking-wider">👴👵 Tercera Edad</p>
           <p className="text-[10px] text-slate-600">60 años o más</p>
         </div>
       </div>
+
+      {/* Listado de personas (cuando se filtra por grupo) */}
+      {filtroGrupo !== 'TODOS' && (
+        <div className="glass-card p-5 animate-slide-up border-t-4 border-t-blue-500/50">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2 uppercase tracking-tight">
+                {filtroGrupo === 'NINOS' && '👦👧 Listado de Niños y Niñas'}
+                {filtroGrupo === 'ADOL' && '🧑 Listado de Adolescentes'}
+                {filtroGrupo === 'ADULT' && '🧑‍💼 Listado de Adultos'}
+                {filtroGrupo === 'ABUELOS' && '👴👵 Listado de Adultos Mayores'}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">Mostrando registros detallados — {filtroLabel}</p>
+            </div>
+            <button 
+              onClick={() => setFiltroGrupo('TODOS')}
+              className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
+            >
+              <FiX className="w-5 h-5" />
+            </button>
+          </div>
+
+          {loadingList ? (
+            <div className="flex justify-center p-8"><div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>
+          ) : listData.length === 0 ? (
+            <p className="text-center py-8 text-slate-500">No hay personas registradas en este grupo para la selección actual.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {listData.map((p: any) => (
+                <div key={p.id} className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between group hover:border-blue-500/30 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${p.genero === 'M' ? 'bg-blue-500/10 text-blue-400' : 'bg-pink-500/10 text-pink-400'}`}>
+                      <FiUser className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">{p.nombre}</p>
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {p.cedula ? `${p.cedula} • ` : ''}{p.edad} años • {p.calle}
+                      </p>
+                    </div>
+                  </div>
+                  <FiChevronRight className="w-4 h-4 text-slate-600 group-hover:text-blue-400 transition-colors" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Detalle por género */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">

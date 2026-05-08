@@ -211,9 +211,16 @@ export default function FamiliasPage() {
                     </div>
 
                     {miembros.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium text-slate-400 mb-2">Miembros del Hogar ({miembros.length})</h4>
-                        <div className="space-y-2">
+                      <div className="mt-4 pt-4 border-t border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
+                            <FiUsers className="w-4 h-4 text-indigo-400" />
+                          </div>
+                          <h4 className="text-sm font-semibold text-indigo-300">
+                            Carga familiar de {jefe?.nombre} ({miembros.length})
+                          </h4>
+                        </div>
+                        <div className="space-y-2 pl-2 border-l-2 border-indigo-500/20">
                           {miembros.map((m) => (
                             <div key={m.id} className="flex items-center justify-between px-3 py-2 bg-slate-800/50 rounded-lg text-sm">
                               <div className="flex items-center gap-2 min-w-0">

@@ -36,7 +36,7 @@ export interface PersonaBasic {
   nombre: string;
   cedula: string | null;
   nacionalidad: string;
-  fechaNacimiento: string;
+  fechaNacimiento: Date | null;
   genero: string;
   parentesco: string | null;
   estadoCivil: string | null;
@@ -50,11 +50,14 @@ export interface PersonaBasic {
   tipoDiscapacidad: string | null;
   embarazada: boolean;
   lactancia: boolean;
+  esVotante: boolean;
+  votaEnEscuela: boolean;
 }
 
 export interface ViviendaBasic {
   id: string;
   direccion: string;
+  numeroCasa: string | null;
   tipo: string;
   tenencia: string;
   materialConstruccion: string | null;
@@ -88,6 +91,19 @@ export interface CalleBasic {
   comunidadId: string;
 }
 
+export interface LocalComercialBasic {
+  id: string;
+  nombre: string;
+  rif: string | null;
+  propietario: string | null;
+  telefono: string | null;
+  tipoNegocio: string;
+  direccion: string | null;
+  activo: boolean;
+  observaciones: string | null;
+  calle: CalleBasic;
+}
+
 export interface EstadisticasGenerales {
   totalFamilias: number;
   totalMiembros: number;
@@ -101,7 +117,11 @@ export interface EstadisticasGenerales {
   totalLactancia: number;
   totalCarnetPatria: number;
   totalClap: number;
+  totalVotantes: number;
+  totalVotanEscuela: number;
   // Demografía detallada
+  totalBebesNinos: number;
+  totalBebesNinas: number;
   totalNinos: number;
   totalNinas: number;
   totalAdolescentes: number;
@@ -109,6 +129,8 @@ export interface EstadisticasGenerales {
   totalAbuelosHombres: number;
   totalAbuelasMujeres: number;
   totalTerceraEdad: number;
+  edadesPorRango: Record<string, number>;
+  edadesPorRangoGenero: Record<string, { hombres: number, mujeres: number }>;
 }
 
 export interface DemografiaConteo {

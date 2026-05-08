@@ -55,6 +55,56 @@ async function assertFamiliaAccess(session: Session, familiaId: string) {
   return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 }
 
+/**
+ * Parsea una fecha de nacimiento (string) a un objeto Date.
+ * Acepta formatos: "YYYY-MM-DD", "DD/MM/YYYY", "DD-MM-YYYY", ISO 8601.
+ */
+function parseFechaNacimiento(fecha: string): Date | null {
+  if (!fecha || !fecha.trim()) return null;
+  const trimmed = fecha.trim();
+
+  // ISO 8601 o YYYY-MM-DD
+  const isoDate = new Date(trimmed);
+  if (!isNaN(isoDate.getTime()) && /^\d{4}[-/]/.test(trimmed)) {
+    return isoDate;
+  }
+
+  // DD/MM/YYYY o DD-MM-YYYY
+  const match = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (match) {
+    const parsed = new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1]));
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+
+  // Último intento genérico
+  const fallback = new Date(trimmed);
+  return isNaN(fallback.getTime()) ? null : fallback;
+}
+
+/**
+ * Genera un identificador secuencial "S/N X" para viviendas sin número de casa.
+ * Busca el máximo secuencial existente en la misma calle y asigna el siguiente.
+ */
+async function generarNumeroCasaSN(calleId: string, tx: typeof prisma): Promise<string> {
+  const viviendas = await tx.vivienda.findMany({
+    where: {
+      numeroCasa: { startsWith: 'S/N ' },
+      familias: { some: { calleId } },
+    },
+    select: { numeroCasa: true },
+  });
+
+  let maxSeq = 0;
+  for (const v of viviendas) {
+    if (v.numeroCasa) {
+      const num = parseInt(v.numeroCasa.replace('S/N ', ''), 10);
+      if (!isNaN(num) && num > maxSeq) maxSeq = num;
+    }
+  }
+
+  return `S/N ${maxSeq + 1}`;
+}
+
 // GET: Listar familias
 export async function GET(req: NextRequest) {
   try {
@@ -121,16 +171,16 @@ export async function POST(req: NextRequest) {
 
     // Transacción atómica para crear todo
     const familia = await prisma.$transaction(async (tx) => {
-      // 1. Familia base
-      const fam = await tx.familia.create({
-        data: { calleId },
-      });
+      // 1. Vivienda — crear o reutilizar si se comparte
+      let numeroCasa = vivienda.numeroCasa || null;
+      if (!numeroCasa || numeroCasa.trim() === '') {
+        numeroCasa = await generarNumeroCasaSN(calleId, tx as unknown as typeof prisma);
+      }
 
-      // 2. Vivienda
-      await tx.vivienda.create({
+      const viv = await tx.vivienda.create({
         data: {
-          familiaId: fam.id,
           direccion: vivienda.direccion,
+          numeroCasa,
           tipo: vivienda.tipo,
           tenencia: vivienda.tenencia,
           materialConstruccion: vivienda.materialConstruccion || null,
@@ -144,18 +194,23 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      // 2. Familia base — vinculada a la vivienda
+      const fam = await tx.familia.create({
+        data: {
+          calleId,
+          viviendaId: viv.id,
+        },
+      });
+
       // 3. Servicios de vivienda
       if (servicios && servicios.length > 0) {
-        const viv = await tx.vivienda.findUnique({ where: { familiaId: fam.id } });
-        if (viv) {
-          await tx.servicioVivienda.createMany({
-            data: servicios.map((s) => ({
-              viviendaId: viv.id,
-              tipo: s.tipo,
-              estado: s.estado,
-            })),
-          });
-        }
+        await tx.servicioVivienda.createMany({
+          data: servicios.map((s) => ({
+            viviendaId: viv.id,
+            tipo: s.tipo,
+            estado: s.estado,
+          })),
+        });
       }
 
       // 4. Programas sociales
@@ -180,7 +235,7 @@ export async function POST(req: NextRequest) {
           nombre: jefe.nombre,
           cedula: jefe.cedula || null,
           nacionalidad: jefe.nacionalidad || 'V',
-          fechaNacimiento: jefe.fechaNacimiento,
+          fechaNacimiento: parseFechaNacimiento(jefe.fechaNacimiento),
           genero: jefe.genero,
           parentesco: null,
           estadoCivil: jefe.estadoCivil || null,
@@ -195,6 +250,8 @@ export async function POST(req: NextRequest) {
           tipoDiscapacidad: jefe.tipoDiscapacidad || null,
           embarazada: jefe.embarazada || false,
           lactancia: jefe.lactancia || false,
+          esVotante: jefe.esVotante || false,
+          votaEnEscuela: jefe.votaEnEscuela || false,
         },
       });
 
@@ -209,7 +266,7 @@ export async function POST(req: NextRequest) {
               nombre: m.nombre,
               cedula: m.cedula || null,
               nacionalidad: m.nacionalidad || 'V',
-              fechaNacimiento: m.fechaNacimiento,
+              fechaNacimiento: parseFechaNacimiento(m.fechaNacimiento),
               genero: m.genero,
               parentesco: m.parentesco || null,
               estadoCivil: m.estadoCivil || null,
@@ -224,6 +281,8 @@ export async function POST(req: NextRequest) {
               tipoDiscapacidad: m.tipoDiscapacidad || null,
               embarazada: m.embarazada || false,
               lactancia: m.lactancia || false,
+              esVotante: m.esVotante || false,
+              votaEnEscuela: m.votaEnEscuela || false,
             })),
           });
         }
@@ -280,48 +339,70 @@ export async function PUT(req: NextRequest) {
         },
       });
 
+      // Obtener familia actual para acceder a la vivienda
+      const familiaActual = await tx.familia.findUnique({
+        where: { id },
+        select: { viviendaId: true, calleId: true },
+      });
+
       // Actualizar vivienda
       if (vivienda) {
-        await tx.vivienda.upsert({
-          where: { familiaId: id },
-          update: {
-            ...(vivienda.direccion ? { direccion: vivienda.direccion } : {}),
-            ...(vivienda.tipo ? { tipo: vivienda.tipo } : {}),
-            ...(vivienda.tenencia ? { tenencia: vivienda.tenencia } : {}),
-            materialConstruccion: vivienda.materialConstruccion ?? undefined,
-            cantidadHabitaciones: vivienda.cantidadHabitaciones !== undefined
-              ? vivienda.cantidadHabitaciones ? parseInt(String(vivienda.cantidadHabitaciones), 10) : null
-              : undefined,
-            cantidadBanos: vivienda.cantidadBanos !== undefined
-              ? vivienda.cantidadBanos ? parseInt(String(vivienda.cantidadBanos), 10) : null
-              : undefined,
-            observaciones: vivienda.observaciones ?? undefined,
-          },
-          create: {
-            familiaId: id,
-            direccion: vivienda.direccion || '',
-            tipo: vivienda.tipo || '',
-            tenencia: vivienda.tenencia || '',
-            materialConstruccion: vivienda.materialConstruccion || null,
-            cantidadHabitaciones: vivienda.cantidadHabitaciones
-              ? parseInt(String(vivienda.cantidadHabitaciones), 10) : null,
-            cantidadBanos: vivienda.cantidadBanos
-              ? parseInt(String(vivienda.cantidadBanos), 10) : null,
-            observaciones: vivienda.observaciones || null,
-          },
-        });
+        if (familiaActual?.viviendaId) {
+          // Actualizar vivienda existente
+          await tx.vivienda.update({
+            where: { id: familiaActual.viviendaId },
+            data: {
+              ...(vivienda.direccion ? { direccion: vivienda.direccion } : {}),
+              ...(vivienda.numeroCasa !== undefined ? { numeroCasa: vivienda.numeroCasa || null } : {}),
+              ...(vivienda.tipo ? { tipo: vivienda.tipo } : {}),
+              ...(vivienda.tenencia ? { tenencia: vivienda.tenencia } : {}),
+              materialConstruccion: vivienda.materialConstruccion ?? undefined,
+              cantidadHabitaciones: vivienda.cantidadHabitaciones !== undefined
+                ? vivienda.cantidadHabitaciones ? parseInt(String(vivienda.cantidadHabitaciones), 10) : null
+                : undefined,
+              cantidadBanos: vivienda.cantidadBanos !== undefined
+                ? vivienda.cantidadBanos ? parseInt(String(vivienda.cantidadBanos), 10) : null
+                : undefined,
+              observaciones: vivienda.observaciones ?? undefined,
+            },
+          });
+        } else {
+          // Crear nueva vivienda y vincular
+          const efectiveCalleId = calleId || familiaActual?.calleId || '';
+          let numeroCasa = vivienda.numeroCasa || null;
+          if (!numeroCasa || numeroCasa.trim() === '') {
+            numeroCasa = await generarNumeroCasaSN(efectiveCalleId, tx as unknown as typeof prisma);
+          }
+
+          const newViv = await tx.vivienda.create({
+            data: {
+              direccion: vivienda.direccion || '',
+              numeroCasa,
+              tipo: vivienda.tipo || '',
+              tenencia: vivienda.tenencia || '',
+              materialConstruccion: vivienda.materialConstruccion || null,
+              cantidadHabitaciones: vivienda.cantidadHabitaciones
+                ? parseInt(String(vivienda.cantidadHabitaciones), 10) : null,
+              cantidadBanos: vivienda.cantidadBanos
+                ? parseInt(String(vivienda.cantidadBanos), 10) : null,
+              observaciones: vivienda.observaciones || null,
+            },
+          });
+
+          await tx.familia.update({
+            where: { id },
+            data: { viviendaId: newViv.id },
+          });
+        }
       }
 
       // Reemplazar servicios
-      if (servicios) {
-        const viv = await tx.vivienda.findUnique({ where: { familiaId: id } });
-        if (viv) {
-          await tx.servicioVivienda.deleteMany({ where: { viviendaId: viv.id } });
-          if (servicios.length > 0) {
-            await tx.servicioVivienda.createMany({
-              data: servicios.map((s) => ({ viviendaId: viv.id, tipo: s.tipo, estado: s.estado })),
-            });
-          }
+      if (servicios && familiaActual?.viviendaId) {
+        await tx.servicioVivienda.deleteMany({ where: { viviendaId: familiaActual.viviendaId } });
+        if (servicios.length > 0) {
+          await tx.servicioVivienda.createMany({
+            data: servicios.map((s) => ({ viviendaId: familiaActual.viviendaId!, tipo: s.tipo, estado: s.estado })),
+          });
         }
       }
 
@@ -357,7 +438,7 @@ export async function PUT(req: NextRequest) {
             nombre: jefe.nombre,
             cedula: jefe.cedula || null,
             nacionalidad: jefe.nacionalidad || 'V',
-            fechaNacimiento: jefe.fechaNacimiento,
+            fechaNacimiento: parseFechaNacimiento(jefe.fechaNacimiento),
             genero: jefe.genero,
             parentesco: null,
             estadoCivil: jefe.estadoCivil || null,
@@ -372,6 +453,8 @@ export async function PUT(req: NextRequest) {
             tipoDiscapacidad: jefe.tipoDiscapacidad || null,
             embarazada: jefe.embarazada || false,
             lactancia: jefe.lactancia || false,
+            esVotante: jefe.esVotante || false,
+            votaEnEscuela: jefe.votaEnEscuela || false,
           },
         });
       }
@@ -388,7 +471,7 @@ export async function PUT(req: NextRequest) {
               nombre: m.nombre,
               cedula: m.cedula || null,
               nacionalidad: m.nacionalidad || 'V',
-              fechaNacimiento: m.fechaNacimiento,
+              fechaNacimiento: parseFechaNacimiento(m.fechaNacimiento),
               genero: m.genero,
               parentesco: m.parentesco || null,
               estadoCivil: m.estadoCivil || null,
@@ -403,6 +486,8 @@ export async function PUT(req: NextRequest) {
               tipoDiscapacidad: m.tipoDiscapacidad || null,
               embarazada: m.embarazada || false,
               lactancia: m.lactancia || false,
+              esVotante: m.esVotante || false,
+              votaEnEscuela: m.votaEnEscuela || false,
             })),
           });
         }
@@ -440,11 +525,28 @@ export async function DELETE(req: NextRequest) {
     const denied = await assertFamiliaAccess(session, id);
     if (denied) return denied;
 
-    // Obtener nombre del jefe antes de borrar
-    const jefe = await prisma.persona.findFirst({ where: { familiaId: id, esJefe: true } });
+    // Obtener nombre del jefe y viviendaId antes de borrar
+    const familiaPreDelete = await prisma.familia.findUnique({
+      where: { id },
+      select: {
+        viviendaId: true,
+        personas: { where: { esJefe: true }, select: { nombre: true, cedula: true } },
+      },
+    });
 
     await prisma.familia.delete({ where: { id } });
 
+    // Si la vivienda queda sin familias, eliminarla también
+    if (familiaPreDelete?.viviendaId) {
+      const familiasRestantes = await prisma.familia.count({
+        where: { viviendaId: familiaPreDelete.viviendaId },
+      });
+      if (familiasRestantes === 0) {
+        await prisma.vivienda.delete({ where: { id: familiaPreDelete.viviendaId } });
+      }
+    }
+
+    const jefe = familiaPreDelete?.personas[0];
     sendAdminNotification({
       actionType: 'Expulsión o Eliminación de Familia',
       details: `El usuario <b>${session.user.name}</b> (Rol: ${session.user.role}) ha borrado el registro censal de <b>${jefe?.nombre ?? '—'}</b> (Cédula: ${jefe?.cedula ?? '—'}).`,

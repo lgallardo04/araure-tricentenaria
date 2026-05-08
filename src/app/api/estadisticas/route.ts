@@ -1,6 +1,7 @@
 // =============================================================
 // API: Estadísticas — Normalizado
 // Usa tabla Persona unificada (elimina duplicación jefe/miembros)
+// Optimizado: fechaNacimiento como DateTime para cálculos nativos
 // =============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,14 +11,12 @@ import { authOptions } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-function calcularEdad(fechaNac: string | null): number | null {
+function calcularEdad(fechaNac: Date | null): number | null {
   if (!fechaNac) return null;
   const hoy = new Date();
-  const nacimiento = new Date(fechaNac);
-  if (isNaN(nacimiento.getTime())) return null;
-  let edad = hoy.getFullYear() - nacimiento.getFullYear();
-  const m = hoy.getMonth() - nacimiento.getMonth();
-  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
+  let edad = hoy.getFullYear() - fechaNac.getFullYear();
+  const m = hoy.getMonth() - fechaNac.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < fechaNac.getDate())) edad--;
   return edad;
 }
 
@@ -63,6 +62,8 @@ export async function GET(req: NextRequest) {
             discapacidad: true,
             embarazada: true,
             lactancia: true,
+            esVotante: true,
+            votaEnEscuela: true,
           },
         },
         vivienda: {
@@ -90,9 +91,13 @@ export async function GET(req: NextRequest) {
     let totalLactancia = 0;
     let totalCarnetPatria = 0;
     let totalClap = 0;
+    let totalVotantes = 0;
+    let totalVotanEscuela = 0;
 
     let totalNinos = 0;
     let totalNinas = 0;
+    let totalBebesNinos = 0;
+    let totalBebesNinas = 0;
     let totalAdolescentes = 0;
     let totalAdultos = 0;
     let totalAbuelosHombres = 0;
@@ -110,20 +115,23 @@ export async function GET(req: NextRequest) {
     const tiposVivienda: Record<string, number> = {};
     const tiposTenencia: Record<string, number> = {};
 
-    const edadesPorRango: Record<string, number> = {
-      '0-5': 0, '6-12': 0, '13-17': 0, '18-30': 0,
-      '31-45': 0, '46-60': 0, '61+': 0, 'Sin dato': 0,
-    };
+    const edadesPorRango: Record<string, number> = {};
+    const edadesPorRangoGenero: Record<string, { hombres: number, mujeres: number }> = {};
+    const clasificarEdad = (edad: number | null, genero: string | null) => {
+      if (edad === null) return;
+      let rango = '';
+      if (edad < 1) rango = '0-1';
+      else if (edad < 5) rango = '1-4';
+      else if (edad < 12) rango = '5-11';
+      else if (edad < 18) rango = '12-17';
+      else if (edad < 60) rango = '18-59';
+      else rango = '60+';
 
-    const clasificarEdad = (edad: number | null) => {
-      if (edad === null) { edadesPorRango['Sin dato']++; return; }
-      if (edad <= 5) edadesPorRango['0-5']++;
-      else if (edad <= 12) edadesPorRango['6-12']++;
-      else if (edad <= 17) edadesPorRango['13-17']++;
-      else if (edad <= 30) edadesPorRango['18-30']++;
-      else if (edad <= 45) edadesPorRango['31-45']++;
-      else if (edad <= 60) edadesPorRango['46-60']++;
-      else edadesPorRango['61+']++;
+      edadesPorRango[rango] = (edadesPorRango[rango] || 0) + 1;
+      
+      if (!edadesPorRangoGenero[rango]) edadesPorRangoGenero[rango] = { hombres: 0, mujeres: 0 };
+      if (genero === 'M') edadesPorRangoGenero[rango].hombres++;
+      else if (genero === 'F') edadesPorRangoGenero[rango].mujeres++;
     };
 
     for (const familia of familias) {
@@ -181,7 +189,7 @@ export async function GET(req: NextRequest) {
         if (edad !== null) {
           if (edad >= 18) totalMayores++; else totalMenores++;
         }
-        clasificarEdad(edad);
+        clasificarEdad(edad, persona.genero);
 
         if (persona.genero === 'M') totalHombres++;
         else if (persona.genero === 'F') totalMujeres++;
@@ -190,9 +198,16 @@ export async function GET(req: NextRequest) {
         if (persona.discapacidad) totalDiscapacidad++;
         if (persona.embarazada) totalEmbarazadas++;
         if (persona.lactancia) totalLactancia++;
+        if (persona.esVotante) totalVotantes++;
+        if (persona.votaEnEscuela) totalVotanEscuela++;
 
         // Demografía detallada
         if (edad !== null) {
+          if (edad <= 1) {
+            if (persona.genero === 'M') totalBebesNinos++;
+            else if (persona.genero === 'F') totalBebesNinas++;
+          }
+          
           if (edad < 12) {
             if (persona.genero === 'M') totalNinos++;
             else if (persona.genero === 'F') totalNinas++;
@@ -250,8 +265,12 @@ export async function GET(req: NextRequest) {
       totalLactancia,
       totalCarnetPatria,
       totalClap,
+      totalVotantes,
+      totalVotanEscuela,
       totalComunidades,
       totalCalles,
+      totalBebesNinos,
+      totalBebesNinas,
       totalNinos,
       totalNinas,
       totalAdolescentes,
@@ -260,6 +279,7 @@ export async function GET(req: NextRequest) {
       totalAbuelasMujeres,
       totalTerceraEdad,
       edadesPorRango,
+      edadesPorRangoGenero,
       poblacionPorComunidad,
       servicios,
       tiposVivienda,

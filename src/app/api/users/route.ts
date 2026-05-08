@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const { name, email, password, phone, cedula, role, comunidadId } = parsed.data;
+    const { name, email, password, phone, cedula, role, comunidadId, calleId } = parsed.data;
 
     // Verificar que el email no exista
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -94,6 +94,24 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Determinar comunidadId para Jefe de Calle (derivada de la calle asignada)
+    let efectiveComunidadId: string | null = null;
+
+    if (role === 'JEFE_COMUNIDAD') {
+      efectiveComunidadId = comunidadId!;
+    } else if (role === 'JEFE_CALLE' && calleId) {
+      // Obtener la comunidad de la calle asignada
+      const calle = await prisma.calle.findUnique({
+        where: { id: calleId },
+        select: { comunidadId: true },
+      });
+      if (!calle) {
+        return NextResponse.json({ error: 'La calle especificada no existe' }, { status: 400 });
+      }
+      efectiveComunidadId = calle.comunidadId;
+    }
+
+    // Crear usuario con la comunidad correspondiente
     const user = await prisma.user.create({
       data: {
         name,
@@ -102,10 +120,25 @@ export async function POST(req: NextRequest) {
         phone: phone ?? undefined,
         cedula: cedula ?? undefined,
         role: role as UserRole,
-        comunidadId: role === 'JEFE_COMUNIDAD' ? comunidadId! : null,
+        comunidadId: efectiveComunidadId,
       },
-      select: { id: true, name: true, email: true, role: true, comunidadId: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        comunidadId: true,
+        comunidad: { select: { id: true, nombre: true } },
+      },
     });
+
+    // Si es Jefe de Calle con calle asignada, vincular directamente
+    if (role === 'JEFE_CALLE' && calleId) {
+      await prisma.calle.update({
+        where: { id: calleId },
+        data: { jefeCalleId: user.id },
+      });
+    }
 
     return NextResponse.json(user, { status: 201 });
   } catch (error) {
@@ -130,7 +163,7 @@ export async function PUT(req: NextRequest) {
         { status: 400 }
       );
     }
-    const { id, name, email, password, phone, cedula, active, role, comunidadId } = parsed.data;
+    const { id, name, email, password, phone, cedula, active, role, comunidadId, calleId } = parsed.data;
 
     // No permitir que el admin se desactive a sí mismo
     if (id === session.user.id && active === false) {
@@ -147,8 +180,21 @@ export async function PUT(req: NextRequest) {
     if (cedula !== undefined) updateData.cedula = cedula;
     if (active !== undefined) updateData.active = active;
     if (role) updateData.role = role as UserRole;
-    if (comunidadId !== undefined) {
-      updateData.comunidadId = role === 'JEFE_COMUNIDAD' ? comunidadId : null;
+
+    // Lógica de comunidad según rol
+    const targetRole = role || (await prisma.user.findUnique({ where: { id }, select: { role: true } }))?.role;
+
+    if (targetRole === 'JEFE_COMUNIDAD') {
+      updateData.comunidadId = comunidadId || null;
+    } else if (targetRole === 'JEFE_CALLE' && calleId) {
+      // Derivar comunidad de la calle
+      const calle = await prisma.calle.findUnique({
+        where: { id: calleId },
+        select: { comunidadId: true },
+      });
+      updateData.comunidadId = calle?.comunidadId || null;
+    } else if (comunidadId !== undefined) {
+      updateData.comunidadId = null;
     }
 
     const user = await prisma.user.update({
@@ -156,6 +202,20 @@ export async function PUT(req: NextRequest) {
       data: updateData as Parameters<typeof prisma.user.update>[0]['data'],
       select: { id: true, name: true, email: true, role: true, active: true, comunidadId: true },
     });
+
+    // Si cambió a Jefe de Calle con calle, vincular
+    if (role === 'JEFE_CALLE' && calleId) {
+      // Desvincular calles anteriores
+      await prisma.calle.updateMany({
+        where: { jefeCalleId: id },
+        data: { jefeCalleId: null },
+      });
+      // Vincular nueva calle
+      await prisma.calle.update({
+        where: { id: calleId },
+        data: { jefeCalleId: user.id },
+      });
+    }
 
     return NextResponse.json(user);
   } catch (error) {

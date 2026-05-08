@@ -18,7 +18,7 @@ import {
   CategoryScale, LinearScale, BarElement, Title, PointElement, LineElement
 } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
-import { FiBarChart2, FiFilter, FiDroplet, FiZap, FiDownload } from 'react-icons/fi';
+import { FiBarChart2, FiFilter, FiDroplet, FiZap, FiDownload, FiBriefcase } from 'react-icons/fi';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title, PointElement, LineElement);
 
@@ -78,8 +78,13 @@ export default function ReportesPage() {
   if (filtroCalle) statsParams.set('calleId', filtroCalle);
   else if (filtroComunidad) statsParams.set('comunidadId', filtroComunidad);
   const statsKey = `/api/estadisticas${statsParams.toString() ? '?' + statsParams.toString() : ''}`;
-
   const { data: stats, error, isLoading, mutate } = useSWR<Stats>(statsKey);
+
+  const localesParams = new URLSearchParams();
+  if (filtroCalle) localesParams.set('calleId', filtroCalle);
+  else if (filtroComunidad) localesParams.set('comunidadId', filtroComunidad);
+  const localesKey = `/api/locales-comerciales${localesParams.toString() ? '?' + localesParams.toString() : ''}`;
+  const { data: locales = [] } = useSWR<any[]>(localesKey);
 
   const exportPDF = async () => {
     try {
@@ -148,12 +153,23 @@ export default function ReportesPage() {
     },
   };
 
+  const rangos = Object.keys(stats.edadesPorRangoGenero || {});
   const edadData = {
-    labels: Object.keys(stats.edadesPorRango),
-    datasets: [{
-      label: 'Personas', data: Object.values(stats.edadesPorRango),
-      backgroundColor: colors, borderRadius: 8,
-    }],
+    labels: rangos,
+    datasets: [
+      {
+        label: 'Hombres',
+        data: rangos.map(r => stats.edadesPorRangoGenero[r].hombres),
+        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+        borderRadius: 6,
+      },
+      {
+        label: 'Mujeres',
+        data: rangos.map(r => stats.edadesPorRangoGenero[r].mujeres),
+        backgroundColor: 'rgba(236, 72, 153, 0.7)',
+        borderRadius: 6,
+      }
+    ],
   };
 
   const generoData = {
@@ -311,6 +327,36 @@ export default function ReportesPage() {
         </div>
       </div>
 
+      {/* Recuadro Infocentro */}
+      <div className="bg-gradient-to-r from-blue-900/50 to-indigo-900/50 border border-blue-500/30 rounded-xl p-4 mb-6 text-center shadow-lg animate-fade-in">
+        <h3 className="text-lg md:text-xl font-bold text-blue-300 uppercase tracking-wider">
+          El infocentro es el centro tecnológico de la comuna
+        </h3>
+      </div>
+
+      {/* Estadísticas Electorales y Bebés */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+        <div className="glass-card p-5 text-center flex flex-col justify-center">
+          <p className="text-4xl font-bold text-indigo-400">
+            {stats.totalMayores > 0 ? Math.round((stats.totalVotantes / stats.totalMayores) * 100) : 0}%
+          </p>
+          <p className="text-sm font-semibold text-slate-300 mt-2">Porcentaje General de Votación</p>
+          <p className="text-xs text-slate-500 mt-1">({stats.totalVotantes} de {stats.totalMayores} mayores de edad censados)</p>
+        </div>
+        <div className="glass-card p-5 text-center flex flex-col justify-center">
+          <p className="text-4xl font-bold text-teal-400">{stats.totalVotanEscuela || 0}</p>
+          <p className="text-sm font-semibold text-slate-300 mt-2">Personas que Votan en Escuelas</p>
+        </div>
+        <div className="glass-card p-5 text-center flex flex-col justify-center">
+          <p className="text-4xl font-bold text-pink-400">{(stats.totalBebesNinos || 0) + (stats.totalBebesNinas || 0)}</p>
+          <p className="text-sm font-semibold text-slate-300 mt-2">Población de 0 a 1 año</p>
+          <p className="text-xs text-slate-500 mt-1 flex justify-center gap-3">
+            <span>👦 Niños: <strong className="text-blue-400">{stats.totalBebesNinos || 0}</strong></span>
+            <span>👧 Niñas: <strong className="text-pink-400">{stats.totalBebesNinas || 0}</strong></span>
+          </p>
+        </div>
+      </div>
+
       {/* Demografía segmentada */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
         <div className="glass-card p-3 text-center">
@@ -396,6 +442,39 @@ export default function ReportesPage() {
           <div className="h-64 md:h-72"><Bar data={comunidadData} options={barOpts as any} /></div>
         </div>
       </div>
+
+      {/* Locales Comerciales */}
+      <h3 className="text-lg font-semibold text-white pt-6 break-before-page flex items-center gap-2">
+        <FiBriefcase className="text-yellow-500 w-5 h-5" /> Locales Comerciales Censados ({locales.length})
+      </h3>
+      
+      {locales.length === 0 ? (
+        <div className="glass-card p-6 text-center text-slate-500">
+          <p>No hay locales comerciales censados en esta área.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {locales.map((local: any) => (
+            <div key={local.id} className="glass-card p-4 hover:border-yellow-500/50 transition-colors">
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="font-bold text-white text-base truncate pr-2" title={local.nombre}>{local.nombre}</h4>
+                <span className={`px-2 py-0.5 rounded-full text-xs whitespace-nowrap ${local.activo ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                  {local.activo ? 'Activo' : 'Cerrado'}
+                </span>
+              </div>
+              <p className="text-xs text-yellow-400 mb-2 font-medium">{local.tipoNegocio}</p>
+              
+              <div className="space-y-1 text-sm text-slate-300">
+                {local.propietario && <p><span className="text-slate-500">Prop:</span> {local.propietario}</p>}
+                {local.rif && <p><span className="text-slate-500">RIF:</span> {local.rif}</p>}
+                <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-700/50 truncate" title={`${local.direccion || 'Sin dirección exacta'} — ${local.calle.nombre}`}>
+                  📍 {local.direccion ? `${local.direccion}, ` : ''}{local.calle.nombre}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
     </div>
   );

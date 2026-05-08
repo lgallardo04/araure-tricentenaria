@@ -24,12 +24,15 @@ export const personaSchema = z.object({
   tipoDiscapacidad: optStr,
   embarazada: z.boolean().optional(),
   lactancia: z.boolean().optional(),
+  esVotante: z.boolean().optional(),
+  votaEnEscuela: z.boolean().optional(),
 });
 
 // ─── Vivienda ────────────────────────────────────────────────
 
 export const viviendaSchema = z.object({
   direccion: z.string().min(1),
+  numeroCasa: optStr,
   tipo: z.string().min(1),
   tenencia: z.string().min(1),
   materialConstruccion: optStr,

@@ -45,17 +45,18 @@ model Comunidad {
 }
 
 model Calle {
-  id              String    @id @default(cuid())
-  nombre          String
-  avenida         String?
-  puntoReferencia String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  comunidadId     String
-  jefeCalleId     String?
-  comunidad       Comunidad @relation(fields: [comunidadId], references: [id], onDelete: Cascade)
-  jefeCalle       User?     @relation(fields: [jefeCalleId], references: [id])
-  familias        Familia[]
+  id                 String           @id @default(cuid())
+  nombre             String
+  avenida            String?
+  puntoReferencia    String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  comunidadId        String
+  jefeCalleId        String?
+  comunidad          Comunidad        @relation(fields: [comunidadId], references: [id], onDelete: Cascade)
+  jefeCalle          User?            @relation(fields: [jefeCalleId], references: [id])
+  familias           Familia[]
+  localesComerciales LocalComercial[]
 
   @@index([comunidadId])
   @@index([jefeCalleId])
@@ -66,6 +67,7 @@ model Calle {
 model Familia {
   id              String          @id @default(cuid())
   calleId         String
+  viviendaId      String?
   estado          EstadoFamilia   @default(PENDIENTE)
   aprobadoPorId   String?
   fechaAprobacion DateTime?
@@ -74,21 +76,22 @@ model Familia {
 
   calle           Calle           @relation(fields: [calleId], references: [id], onDelete: Cascade)
   aprobadoPor     User?           @relation("UsuarioAprobador", fields: [aprobadoPorId], references: [id])
+  vivienda        Vivienda?       @relation(fields: [viviendaId], references: [id], onDelete: SetNull)
 
-  vivienda        Vivienda?
   programaSocial  ProgramaSocial?
   personas        Persona[]
 
   @@index([calleId])
+  @@index([viviendaId])
   @@index([estado])
 }
 
-// ─── Vivienda (1:1 con Familia) ─────────────────────────────
+// ─── Vivienda (N familias pueden compartir la misma vivienda) ──
 
 model Vivienda {
   id                   String             @id @default(cuid())
-  familiaId            String             @unique
   direccion            String
+  numeroCasa           String?
   tipo                 String
   tenencia             String
   materialConstruccion String?
@@ -98,8 +101,11 @@ model Vivienda {
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
-  familia              Familia            @relation(fields: [familiaId], references: [id], onDelete: Cascade)
+  familias             Familia[]
   servicios            ServicioVivienda[]
+
+  @@index([direccion])
+  @@index([numeroCasa])
 }
 
 // ─── Servicios de Vivienda (N:1 con Vivienda) ───────────────
@@ -139,7 +145,7 @@ model Persona {
   nombre           String
   cedula           String?
   nacionalidad     String          @default("V")
-  fechaNacimiento  String
+  fechaNacimiento  DateTime?
   genero           String
   parentesco       String?
   estadoCivil      String?
@@ -154,6 +160,8 @@ model Persona {
   tipoDiscapacidad String?
   embarazada       Boolean         @default(false)
   lactancia        Boolean         @default(false)
+  esVotante        Boolean         @default(false)
+  votaEnEscuela    Boolean         @default(false)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
@@ -212,6 +220,28 @@ model RegistroSalud {
   @@index([enfermedadId])
   @@index([medicamentoId])
   @@index([activo])
+}
+
+// ─── Locales Comerciales (N:1 con Calle) ─────────────────────
+
+model LocalComercial {
+  id              String   @id @default(cuid())
+  calleId         String
+  nombre          String
+  rif             String?
+  propietario     String?
+  telefono        String?
+  tipoNegocio     String
+  direccion       String?
+  activo          Boolean  @default(true)
+  observaciones   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  calle           Calle    @relation(fields: [calleId], references: [id], onDelete: Cascade)
+
+  @@index([calleId])
+  @@index([tipoNegocio])
 }
 
 // ─── Enums ───────────────────────────────────────────────────

@@ -11,6 +11,7 @@ export const userCreateSchema = z
     cedula: optionalStr,
     role: z.enum(['JEFE_COMUNIDAD', 'JEFE_CALLE']),
     comunidadId: z.union([z.string().min(1), z.null(), z.undefined()]).optional(),
+    calleId: z.union([z.string().min(1), z.null(), z.undefined()]).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.role === 'JEFE_COMUNIDAD' && !data.comunidadId) {
@@ -32,4 +33,5 @@ export const userUpdateSchema = z.object({
   active: z.boolean().optional(),
   role: z.enum(['ADMIN', 'JEFE_COMUNIDAD', 'JEFE_CALLE']).optional(),
   comunidadId: z.union([z.string(), z.null(), z.undefined()]).optional(),
+  calleId: z.union([z.string(), z.null(), z.undefined()]).optional(),
 });

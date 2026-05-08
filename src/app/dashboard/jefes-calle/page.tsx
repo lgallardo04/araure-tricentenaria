@@ -13,6 +13,7 @@ import {
   FiMapPin, FiMap, FiShield, FiEye, FiEyeOff
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { useSession } from 'next-auth/react';
 
 interface User {
   id: string;
@@ -141,12 +142,23 @@ export default function GestionUsuariosPage() {
     setShowModal(true);
   };
 
+  const { data: session } = useSession();
+  
+  const userComunidad = comunidades.find(c => c.id === session?.user?.comunidadId);
+  const titleJefesCalle = userComunidad 
+    ? `Los jefes de calle de la comunidad ${userComunidad.nombre.replace('Consejo Comunal ', '')}`
+    : 'Jefes de Calle (Todas las comunidades)';
+
   return (
     <div className="space-y-5 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Gestión de Usuarios</h2>
-          <p className="text-slate-500 mt-1">Administra jefes de comunidad y jefes de calle</p>
+          <h2 className="text-2xl font-bold text-white">
+            {tab === 'JEFE_CALLE' ? titleJefesCalle : 'Gestión de Usuarios'}
+          </h2>
+          <p className="text-slate-500 mt-1">
+            {tab === 'JEFE_CALLE' ? 'Directorio de responsables por calle' : 'Administra jefes de comunidad y jefes de calle'}
+          </p>
         </div>
         <button onClick={openCreate} className="btn-primary flex items-center gap-2">
           <FiPlus className="w-5 h-5" />

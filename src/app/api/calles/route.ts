@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       include: {
         comunidad: { select: { id: true, nombre: true } },
         jefeCalle: { select: { id: true, name: true, email: true } },
-        _count: { select: { familias: true } },
+        _count: { select: { familias: true, localesComerciales: true } },
       },
       orderBy: { nombre: 'asc' },
     });
