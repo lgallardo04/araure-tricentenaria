@@ -246,7 +246,7 @@ export default function CensarPage() {
   };
 
   const handleSubmit = async () => {
-    if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
+    if (!validateStep(1) || !validateStep(2)) {
       toast.error('Revise los campos obligatorios');
       return;
     }
@@ -291,10 +291,8 @@ export default function CensarPage() {
   const ingresosFamiliares = ['Menos de 1 salario mínimo', '1 a 2 salarios mínimos', '2 a 3 salarios mínimos', 'Más de 3 salarios mínimos'];
 
   const steps = [
-    { n: 1, label: 'Vivienda', icon: FiHome },
-    { n: 2, label: 'Jefe de Familia', icon: FiUser },
-    { n: 3, label: 'Miembros', icon: FiUsers },
-    { n: 4, label: 'Servicios', icon: FiZap },
+    { n: 1, label: 'Vivienda y Servicios', icon: FiHome },
+    { n: 2, label: 'Grupo Familiar', icon: FiUsers },
   ];
 
   const Req = ({ children }: { children: React.ReactNode }) => (
@@ -342,15 +340,16 @@ export default function CensarPage() {
         </select>
       </div>
 
-      {/* PASO 1: Datos de Vivienda */}
+      {/* PASO 1: Datos de Vivienda y Servicios */}
       {step === 1 && (
-        <div className="glass-card p-5 sm:p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <FiHome className="w-5 h-5 text-blue-400" />
-            Datos de la Vivienda
-          </h3>
+        <div className="space-y-4">
+          <div className="glass-card p-5 sm:p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <FiHome className="w-5 h-5 text-blue-400" />
+              Datos de la Vivienda
+            </h3>
 
-          <div>
+            <div>
             <Req>Dirección Exacta</Req>
             <input value={vivienda.direccion} onChange={(e) => setVivienda({ ...vivienda, direccion: e.target.value })}
               className="input-field" placeholder="Ej: Casa #15, Calle Principal, frente a la bodega" />
@@ -401,6 +400,118 @@ export default function CensarPage() {
               className="input-field" rows={2} placeholder="Observaciones sobre la vivienda..." />
           </div>
 
+          </div>
+
+          <div className="glass-card p-5 sm:p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <FiZap className="w-5 h-5 text-yellow-400" />
+              Servicios Básicos
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <Opt>Servicio de Agua</Opt>
+                <select value={servicios.AGUA} onChange={(e) => setServicios({ ...servicios, AGUA: e.target.value })} className="select-field">
+                  <option value="">Seleccionar...</option>
+                  {opcionesAgua.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <Opt>Electricidad</Opt>
+                <select value={servicios.ELECTRICIDAD} onChange={(e) => setServicios({ ...servicios, ELECTRICIDAD: e.target.value })} className="select-field">
+                  <option value="">Seleccionar...</option>
+                  {opcionesElectricidad.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <Opt>Gas</Opt>
+                <select value={servicios.GAS} onChange={(e) => setServicios({ ...servicios, GAS: e.target.value })} className="select-field">
+                  <option value="">Seleccionar...</option>
+                  {opcionesGas.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <Opt>Internet</Opt>
+                <select value={servicios.INTERNET} onChange={(e) => setServicios({ ...servicios, INTERNET: e.target.value })} className="select-field">
+                  <option value="">Seleccionar...</option>
+                  {opcionesSiNo.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <Opt>Aseo Urbano</Opt>
+                <select value={servicios.ASEO} onChange={(e) => setServicios({ ...servicios, ASEO: e.target.value })} className="select-field">
+                  <option value="">Seleccionar...</option>
+                  {opcionesAseo.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <Opt>Telefonía</Opt>
+                <select value={servicios.TELEFONO} onChange={(e) => setServicios({ ...servicios, TELEFONO: e.target.value })} className="select-field">
+                  <option value="">Seleccionar...</option>
+                  {opcionesTelefono.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-5 sm:p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <FiCheckCircle className="w-5 h-5 text-emerald-400" />
+              Programas Sociales y Economía
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-slate-900/50 border border-slate-700/50 hover:bg-slate-800/50 transition-colors">
+                  <input type="checkbox" checked={programas.carnetPatria}
+                    onChange={(e) => setProgramas({ ...programas, carnetPatria: e.target.checked })}
+                    className="w-5 h-5 rounded bg-slate-800 border-slate-600 text-blue-500" />
+                  <div>
+                    <span className="text-sm text-slate-300 font-medium">Carnet de la Patria</span>
+                    <p className="text-xs text-slate-500">¿La familia posee carnet?</p>
+                  </div>
+                </label>
+                {programas.carnetPatria && (
+                  <div className="ml-8">
+                    <Opt>Código del Carnet</Opt>
+                    <input value={programas.codigoCarnetPatria}
+                      onChange={(e) => setProgramas({ ...programas, codigoCarnetPatria: e.target.value })}
+                      className="input-field text-sm" placeholder="Código del carnet" />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-slate-900/50 border border-slate-700/50 hover:bg-slate-800/50 transition-colors">
+                  <input type="checkbox" checked={programas.recibeClap}
+                    onChange={(e) => setProgramas({ ...programas, recibeClap: e.target.checked })}
+                    className="w-5 h-5 rounded bg-slate-800 border-slate-600 text-emerald-500" />
+                  <div>
+                    <span className="text-sm text-slate-300 font-medium">Recibe CLAP</span>
+                    <p className="text-xs text-slate-500">¿Reciben caja CLAP?</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Opt>Ingreso Familiar</Opt>
+                <select value={programas.ingresoFamiliar}
+                  onChange={(e) => setProgramas({ ...programas, ingresoFamiliar: e.target.value })} className="select-field">
+                  <option value="">Seleccionar rango...</option>
+                  {ingresosFamiliares.map((i) => <option key={i} value={i}>{i}</option>)}
+                </select>
+              </div>
+              <div>
+                <Opt>Otros Beneficios Sociales</Opt>
+                <input value={programas.otrosBeneficios}
+                  onChange={(e) => setProgramas({ ...programas, otrosBeneficios: e.target.value })}
+                  className="input-field" placeholder="Hogares de la Patria, Misiones, etc." />
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-end pt-2">
             <button onClick={nextStep} className="btn-primary flex items-center gap-2">
               Siguiente <FiChevronRight className="w-4 h-4" />
@@ -409,13 +520,14 @@ export default function CensarPage() {
         </div>
       )}
 
-      {/* PASO 2: Datos del Jefe de Familia */}
+      {/* PASO 2: Jefe de Familia y Miembros */}
       {step === 2 && (
-        <div className="glass-card p-5 sm:p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <FiUser className="w-5 h-5 text-emerald-400" />
-            Datos del Jefe de Familia
-          </h3>
+        <div className="space-y-4">
+          <div className="glass-card p-5 sm:p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <FiUser className="w-5 h-5 text-emerald-400" />
+              Datos del Jefe de Familia
+            </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -533,21 +645,8 @@ export default function CensarPage() {
                 className="input-field" placeholder="Tipo de discapacidad" />
             </div>
           )}
-
-          <div className="flex justify-between pt-2">
-            <button onClick={prevStep} className="btn-secondary flex items-center gap-2">
-              <FiChevronLeft className="w-4 h-4" /> Anterior
-            </button>
-            <button onClick={nextStep} className="btn-primary flex items-center gap-2">
-              Siguiente <FiChevronRight className="w-4 h-4" />
-            </button>
           </div>
-        </div>
-      )}
 
-      {/* PASO 3: Miembros de Familia */}
-      {step === 3 && (
-        <div className="space-y-4">
           <div className="glass-card p-5 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-white flex items-center gap-2">
@@ -673,132 +772,8 @@ export default function CensarPage() {
             )}
           </div>
 
-          <div className="flex justify-between">
-            <button onClick={prevStep} className="btn-secondary flex items-center gap-2">
-              <FiChevronLeft className="w-4 h-4" /> Anterior
-            </button>
-            <button onClick={nextStep} className="btn-primary flex items-center gap-2">
-              Siguiente <FiChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* PASO 4: Servicios y Programas Sociales */}
-      {step === 4 && (
-        <div className="space-y-4">
-          <div className="glass-card p-5 sm:p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <FiZap className="w-5 h-5 text-yellow-400" />
-              Servicios Básicos
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <Opt>Servicio de Agua</Opt>
-                <select value={servicios.AGUA} onChange={(e) => setServicios({ ...servicios, AGUA: e.target.value })} className="select-field">
-                  <option value="">Seleccionar...</option>
-                  {opcionesAgua.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-              <div>
-                <Opt>Electricidad</Opt>
-                <select value={servicios.ELECTRICIDAD} onChange={(e) => setServicios({ ...servicios, ELECTRICIDAD: e.target.value })} className="select-field">
-                  <option value="">Seleccionar...</option>
-                  {opcionesElectricidad.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-              <div>
-                <Opt>Gas</Opt>
-                <select value={servicios.GAS} onChange={(e) => setServicios({ ...servicios, GAS: e.target.value })} className="select-field">
-                  <option value="">Seleccionar...</option>
-                  {opcionesGas.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-              <div>
-                <Opt>Internet</Opt>
-                <select value={servicios.INTERNET} onChange={(e) => setServicios({ ...servicios, INTERNET: e.target.value })} className="select-field">
-                  <option value="">Seleccionar...</option>
-                  {opcionesSiNo.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-              <div>
-                <Opt>Aseo Urbano</Opt>
-                <select value={servicios.ASEO} onChange={(e) => setServicios({ ...servicios, ASEO: e.target.value })} className="select-field">
-                  <option value="">Seleccionar...</option>
-                  {opcionesAseo.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-              <div>
-                <Opt>Telefonía</Opt>
-                <select value={servicios.TELEFONO} onChange={(e) => setServicios({ ...servicios, TELEFONO: e.target.value })} className="select-field">
-                  <option value="">Seleccionar...</option>
-                  {opcionesTelefono.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card p-5 sm:p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <FiCheckCircle className="w-5 h-5 text-emerald-400" />
-              Programas Sociales y Economía
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-slate-900/50 border border-slate-700/50 hover:bg-slate-800/50 transition-colors">
-                  <input type="checkbox" checked={programas.carnetPatria}
-                    onChange={(e) => setProgramas({ ...programas, carnetPatria: e.target.checked })}
-                    className="w-5 h-5 rounded bg-slate-800 border-slate-600 text-blue-500" />
-                  <div>
-                    <span className="text-sm text-slate-300 font-medium">Carnet de la Patria</span>
-                    <p className="text-xs text-slate-500">¿La familia posee carnet?</p>
-                  </div>
-                </label>
-                {programas.carnetPatria && (
-                  <div className="ml-8">
-                    <Opt>Código del Carnet</Opt>
-                    <input value={programas.codigoCarnetPatria}
-                      onChange={(e) => setProgramas({ ...programas, codigoCarnetPatria: e.target.value })}
-                      className="input-field text-sm" placeholder="Código del carnet" />
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-slate-900/50 border border-slate-700/50 hover:bg-slate-800/50 transition-colors">
-                  <input type="checkbox" checked={programas.recibeClap}
-                    onChange={(e) => setProgramas({ ...programas, recibeClap: e.target.checked })}
-                    className="w-5 h-5 rounded bg-slate-800 border-slate-600 text-emerald-500" />
-                  <div>
-                    <span className="text-sm text-slate-300 font-medium">Recibe CLAP</span>
-                    <p className="text-xs text-slate-500">¿Reciben caja CLAP?</p>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Opt>Ingreso Familiar</Opt>
-                <select value={programas.ingresoFamiliar}
-                  onChange={(e) => setProgramas({ ...programas, ingresoFamiliar: e.target.value })} className="select-field">
-                  <option value="">Seleccionar rango...</option>
-                  {ingresosFamiliares.map((i) => <option key={i} value={i}>{i}</option>)}
-                </select>
-              </div>
-              <div>
-                <Opt>Otros Beneficios Sociales</Opt>
-                <input value={programas.otrosBeneficios}
-                  onChange={(e) => setProgramas({ ...programas, otrosBeneficios: e.target.value })}
-                  className="input-field" placeholder="Hogares de la Patria, Misiones, etc." />
-              </div>
-            </div>
-          </div>
-
           {/* Resumen y envío */}
-          <div className="glass-card p-5 sm:p-6">
+          <div className="glass-card p-5 sm:p-6 mt-4">
             <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
               <FiCheckCircle className="w-5 h-5 text-blue-400" />
               Resumen del Censo
@@ -823,7 +798,7 @@ export default function CensarPage() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-between gap-3">
+          <div className="flex flex-col sm:flex-row justify-between gap-3 mt-4">
             <button onClick={prevStep} className="btn-secondary flex items-center justify-center gap-2">
               <FiChevronLeft className="w-4 h-4" /> Anterior
             </button>
