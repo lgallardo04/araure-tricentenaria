@@ -42,6 +42,8 @@ export async function GET(req: NextRequest) {
       familiaWhere.calle = { comunidadId: session.user.comunidadId };
     }
 
+    const filtroDato = searchParams.get('filtroDato');
+
     if (role === 'JEFE_CALLE') {
       const callesAsignadas = await prisma.calle.findMany({
         where: { jefeCalleId: session.user.id },
@@ -49,6 +51,15 @@ export async function GET(req: NextRequest) {
       });
       familiaWhere.calleId = calleId ? calleId : { in: callesAsignadas.map((c) => c.id) };
     }
+
+    if (filtroDato === 'PENSIONADO') familiaWhere.personas = { some: { pensionado: true } };
+    else if (filtroDato === 'DISCAPACIDAD') familiaWhere.personas = { some: { discapacidad: true } };
+    else if (filtroDato === 'EMBARAZADA') familiaWhere.personas = { some: { embarazada: true } };
+    else if (filtroDato === 'LACTANCIA') familiaWhere.personas = { some: { lactancia: true } };
+    else if (filtroDato === 'CARNET_PATRIA') familiaWhere.programaSocial = { carnetPatria: true };
+    else if (filtroDato === 'CLAP') familiaWhere.programaSocial = { recibeClap: true };
+    else if (filtroDato === 'MAYORES') familiaWhere.personas = { some: { fechaNacimiento: { lte: new Date(new Date().setFullYear(new Date().getFullYear() - 18)) } } };
+
 
     // Query normalizada: Personas + Vivienda + Programas
     const familias = await prisma.familia.findMany({
@@ -64,6 +75,7 @@ export async function GET(req: NextRequest) {
             lactancia: true,
             esVotante: true,
             votaEnEscuela: true,
+            centroVotacion: true,
           },
         },
         vivienda: {

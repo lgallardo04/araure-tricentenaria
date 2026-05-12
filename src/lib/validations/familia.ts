@@ -26,6 +26,7 @@ export const personaSchema = z.object({
   lactancia: z.boolean().optional(),
   esVotante: z.boolean().optional(),
   votaEnEscuela: z.boolean().optional(),
+  centroVotacion: optStr,
 });
 
 // ─── Vivienda ────────────────────────────────────────────────

@@ -41,13 +41,17 @@ interface MiembroForm {
   tipoDiscapacidad: string;
   embarazada: boolean;
   lactancia: boolean;
+  esVotante: boolean;
+  votaEnEscuela: boolean;
+  centroVotacion: string;
 }
 
 const miembroVacio: MiembroForm = {
   nombre: '', cedula: '', nacionalidad: 'V', fechaNacimiento: '', genero: '',
   parentesco: '', estadoCivil: '', escolaridad: '', ocupacion: '', lugarTrabajo: '',
   salud: '', pensionado: false, discapacidad: false, tipoDiscapacidad: '',
-  embarazada: false, lactancia: false,
+  embarazada: false, lactancia: false, esVotante: false, votaEnEscuela: false,
+  centroVotacion: '',
 };
 
 export default function CensarPage() {
@@ -58,6 +62,7 @@ export default function CensarPage() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
 
+  const editId = searchParams.get('edit');
   const [calleId, setCalleId] = useState(searchParams.get('calleId') || '');
 
   const [vivienda, setVivienda] = useState({
@@ -81,6 +86,7 @@ export default function CensarPage() {
     ocupacion: '', lugarTrabajo: '', pensionado: false,
     discapacidad: false, tipoDiscapacidad: '', enfermedad: '',
     embarazada: false, lactancia: false,
+    esVotante: false, votaEnEscuela: false, centroVotacion: '',
   });
 
   const [miembros, setMiembros] = useState<MiembroForm[]>([]);
@@ -97,6 +103,11 @@ export default function CensarPage() {
 
   useEffect(() => {
     if (!session || draftChecked) return;
+    if (editId) {
+      // En modo edición, no restaurar borradores — se cargan datos del servidor
+      setDraftChecked(true);
+      return;
+    }
     try {
       const raw = sessionStorage.getItem(CENSO_DRAFT_KEY);
       if (raw) {
@@ -117,7 +128,7 @@ export default function CensarPage() {
       sessionStorage.removeItem(CENSO_DRAFT_KEY);
     }
     setDraftChecked(true);
-  }, [session, draftChecked]);
+  }, [session, draftChecked, editId]);
 
   useEffect(() => {
     if (!session || !draftChecked) return;
@@ -136,6 +147,99 @@ export default function CensarPage() {
       })
       .catch(console.error);
   }, [session, draftChecked, calleId]);
+
+  useEffect(() => {
+    if (!editId || !session || !draftChecked) return;
+    
+    apiFetch(`/api/familias?id=${editId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data && !data.error) {
+          setCalleId(data.calleId || '');
+          if (data.vivienda) {
+            setVivienda({
+              direccion: data.vivienda.direccion || '',
+              tipo: data.vivienda.tipo || '',
+              tenencia: data.vivienda.tenencia || '',
+              materialConstruccion: data.vivienda.materialConstruccion || '',
+              cantidadHabitaciones: data.vivienda.cantidadHabitaciones?.toString() || '',
+              cantidadBanos: data.vivienda.cantidadBanos?.toString() || '',
+              observaciones: data.vivienda.observaciones || '',
+            });
+            
+            const newServicios = { AGUA: '', ELECTRICIDAD: '', GAS: '', INTERNET: '', ASEO: '', TELEFONO: '' };
+            if (data.vivienda.servicios) {
+              data.vivienda.servicios.forEach((s: any) => {
+                if (s.tipo in newServicios) (newServicios as any)[s.tipo] = s.estado;
+              });
+            }
+            setServicios(newServicios);
+          }
+          
+          if (data.programaSocial) {
+            setProgramas({
+              carnetPatria: data.programaSocial.carnetPatria || false,
+              codigoCarnetPatria: data.programaSocial.codigoCarnetPatria || '',
+              recibeClap: data.programaSocial.recibeClap || false,
+              otrosBeneficios: data.programaSocial.otrosBeneficios || '',
+              ingresoFamiliar: data.programaSocial.ingresoFamiliar || '',
+            });
+          }
+          
+          if (data.personas) {
+            const j = data.personas.find((p: any) => p.esJefe);
+            if (j) {
+              setJefe({
+                nombre: j.nombre || '',
+                cedula: j.cedula || '',
+                nacionalidad: j.nacionalidad || 'V',
+                fechaNacimiento: j.fechaNacimiento ? new Date(j.fechaNacimiento).toISOString().split('T')[0] : '',
+                genero: j.genero || '',
+                estadoCivil: j.estadoCivil || '',
+                telefono: j.telefono || '',
+                email: j.email || '',
+                escolaridad: j.escolaridad || '',
+                ocupacion: j.ocupacion || '',
+                lugarTrabajo: j.lugarTrabajo || '',
+                pensionado: j.pensionado || false,
+                discapacidad: j.discapacidad || false,
+                tipoDiscapacidad: j.tipoDiscapacidad || '',
+                enfermedad: j.enfermedad || '',
+                embarazada: j.embarazada || false,
+                lactancia: j.lactancia || false,
+                esVotante: j.esVotante || false,
+                votaEnEscuela: j.votaEnEscuela || false,
+                centroVotacion: j.centroVotacion || '',
+              });
+            }
+            
+            const mList = data.personas.filter((p: any) => !p.esJefe).map((m: any) => ({
+              nombre: m.nombre || '',
+              cedula: m.cedula || '',
+              nacionalidad: m.nacionalidad || 'V',
+              fechaNacimiento: m.fechaNacimiento ? new Date(m.fechaNacimiento).toISOString().split('T')[0] : '',
+              genero: m.genero || '',
+              parentesco: m.parentesco || '',
+              estadoCivil: m.estadoCivil || '',
+              escolaridad: m.escolaridad || '',
+              ocupacion: m.ocupacion || '',
+              lugarTrabajo: m.lugarTrabajo || '',
+              salud: m.enfermedad || '',
+              pensionado: m.pensionado || false,
+              discapacidad: m.discapacidad || false,
+              tipoDiscapacidad: m.tipoDiscapacidad || '',
+              embarazada: m.embarazada || false,
+              lactancia: m.lactancia || false,
+              esVotante: m.esVotante || false,
+              votaEnEscuela: m.votaEnEscuela || false,
+              centroVotacion: m.centroVotacion || '',
+            }));
+            setMiembros(mList);
+          }
+        }
+      })
+      .catch(console.error);
+  }, [editId, session, draftChecked]);
 
   useEffect(() => {
     if (!session || !draftChecked) return;
@@ -222,6 +326,9 @@ export default function CensarPage() {
         tipoDiscapacidad: jefe.tipoDiscapacidad || null,
         embarazada: jefe.embarazada,
         lactancia: jefe.lactancia,
+        esVotante: jefe.esVotante,
+        votaEnEscuela: jefe.votaEnEscuela,
+        centroVotacion: jefe.centroVotacion || null,
       },
       miembros: miembros
         .filter((m) => m.nombre.trim() !== '')
@@ -241,6 +348,9 @@ export default function CensarPage() {
           tipoDiscapacidad: m.tipoDiscapacidad || null,
           embarazada: m.embarazada,
           lactancia: m.lactancia,
+          esVotante: m.esVotante,
+          votaEnEscuela: m.votaEnEscuela,
+          centroVotacion: m.centroVotacion || null,
         })),
     };
   };
@@ -253,9 +363,13 @@ export default function CensarPage() {
 
     setLoading(true);
     try {
+      const payload = buildPayload();
+      if (editId) {
+        (payload as any).id = editId;
+      }
       const res = await apiFetch('/api/familias', {
-        method: 'POST',
-        body: JSON.stringify(buildPayload()),
+        method: editId ? 'PUT' : 'POST',
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -265,7 +379,7 @@ export default function CensarPage() {
 
       try { sessionStorage.removeItem(CENSO_DRAFT_KEY); } catch { /* ignore */ }
 
-      toast.success('¡Familia censada exitosamente!');
+      toast.success(editId ? '¡Familia actualizada exitosamente!' : '¡Familia censada exitosamente!');
       const role = session?.user?.role;
       router.push(role === 'ADMIN' ? '/dashboard/familias' : '/mi-calle/familias');
     } catch (err: any) {
@@ -305,8 +419,8 @@ export default function CensarPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-5 animate-fade-in pb-8">
       <div>
-        <h2 className="text-2xl font-bold text-white">Censar Nueva Familia</h2>
-        <p className="text-slate-500 mt-1">Complete el formulario de censo paso a paso</p>
+        <h2 className="text-2xl font-bold text-white">{editId ? 'Editar Familia Censada' : 'Censar Nueva Familia'}</h2>
+        <p className="text-slate-500 mt-1">{editId ? 'Actualice los datos del formulario de censo' : 'Complete el formulario de censo paso a paso'}</p>
       </div>
 
       {/* Indicador de pasos */}
@@ -637,7 +751,28 @@ export default function CensarPage() {
                 </label>
               </>
             )}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={jefe.esVotante} onChange={(e) => setJefe({ ...jefe, esVotante: e.target.checked })}
+                className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-teal-500 focus:ring-teal-500" />
+              <span className="text-sm text-slate-400">Es Votante</span>
+            </label>
           </div>
+          {jefe.esVotante && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+              <div>
+                <Opt>Centro de Votación</Opt>
+                <input value={jefe.centroVotacion || ''} onChange={(e) => setJefe({ ...jefe, centroVotacion: e.target.value })}
+                  className="input-field" placeholder="Nombre de la escuela o centro..." />
+              </div>
+              <div className="flex items-end pb-2">
+                <label className="flex items-center gap-2 cursor-pointer bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 w-full">
+                  <input type="checkbox" checked={jefe.votaEnEscuela} onChange={(e) => setJefe({ ...jefe, votaEnEscuela: e.target.checked })}
+                    className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-teal-500 focus:ring-teal-500" />
+                  <span className="text-sm text-slate-300">¿Vota en la Escuela Tricentenaria?</span>
+                </label>
+              </div>
+            </div>
+          )}
           {jefe.discapacidad && (
             <div>
               <Opt>Tipo de Discapacidad</Opt>
@@ -759,6 +894,11 @@ export default function CensarPage() {
                           </label>
                         </>
                       )}
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={m.esVotante} onChange={(e) => updateMiembro(i, 'esVotante', e.target.checked)}
+                          className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-teal-500" />
+                        <span className="text-xs text-slate-400">Es Votante</span>
+                      </label>
                       {m.discapacidad && (
                         <div className="flex-1 min-w-[180px]">
                           <input value={m.tipoDiscapacidad} onChange={(e) => updateMiembro(i, 'tipoDiscapacidad', e.target.value)}
@@ -766,6 +906,22 @@ export default function CensarPage() {
                         </div>
                       )}
                     </div>
+                    {m.esVotante && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-700/30">
+                        <div>
+                          <Opt>Centro de Votación</Opt>
+                          <input value={m.centroVotacion || ''} onChange={(e) => updateMiembro(i, 'centroVotacion', e.target.value)}
+                            className="input-field text-sm py-2" placeholder="Lugar de votación..." />
+                        </div>
+                        <div className="flex items-end pb-1">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={m.votaEnEscuela} onChange={(e) => updateMiembro(i, 'votaEnEscuela', e.target.checked)}
+                              className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-teal-500" />
+                            <span className="text-sm text-slate-300">¿Vota en la Escuela Tricentenaria?</span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

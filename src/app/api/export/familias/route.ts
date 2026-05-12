@@ -27,6 +27,9 @@ const COLUMNS = [
   'internet',
   'carnet_patria',
   'recibe_clap',
+  'es_votante',
+  'centro_votacion',
+  'vota_en_escuela',
 ] as const;
 
 export async function GET(req: NextRequest) {
@@ -82,6 +85,9 @@ export async function GET(req: NextRequest) {
           escapeCsvCell(getServicio('INTERNET')),
           f.programaSocial?.carnetPatria ? 'Sí' : 'No',
           f.programaSocial?.recibeClap ? 'Sí' : 'No',
+          jefe?.esVotante ? 'Sí' : 'No',
+          escapeCsvCell(jefe?.centroVotacion),
+          jefe?.votaEnEscuela ? 'Sí' : 'No',
         ].join(',')
       );
     }

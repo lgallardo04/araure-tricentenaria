@@ -105,7 +105,7 @@ async function generarNumeroCasaSN(calleId: string, tx: typeof prisma): Promise<
   return `S/N ${maxSeq + 1}`;
 }
 
-// GET: Listar familias
+// GET: Listar familias o una sola por ID
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -114,12 +114,25 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
     const { where, error } = await buildFamiliaListWhere(session, {
       calleId: searchParams.get('calleId'),
       comunidadId: searchParams.get('comunidadId'),
       search: searchParams.get('search'),
     });
     if (error) return error;
+
+    if (id) {
+      const familia = await prisma.familia.findFirst({
+        where: { ...where, id },
+        include: familiaFullInclude,
+      });
+      if (!familia) {
+        return NextResponse.json({ error: 'Familia no encontrada' }, { status: 404 });
+      }
+      return NextResponse.json(familia);
+    }
 
     const familias = await prisma.familia.findMany({
       where,
@@ -252,6 +265,7 @@ export async function POST(req: NextRequest) {
           lactancia: jefe.lactancia || false,
           esVotante: jefe.esVotante || false,
           votaEnEscuela: jefe.votaEnEscuela || false,
+          centroVotacion: jefe.centroVotacion || null,
         },
       });
 
@@ -283,6 +297,7 @@ export async function POST(req: NextRequest) {
               lactancia: m.lactancia || false,
               esVotante: m.esVotante || false,
               votaEnEscuela: m.votaEnEscuela || false,
+              centroVotacion: m.centroVotacion || null,
             })),
           });
         }
@@ -455,6 +470,7 @@ export async function PUT(req: NextRequest) {
             lactancia: jefe.lactancia || false,
             esVotante: jefe.esVotante || false,
             votaEnEscuela: jefe.votaEnEscuela || false,
+            centroVotacion: jefe.centroVotacion || null,
           },
         });
       }
@@ -488,6 +504,7 @@ export async function PUT(req: NextRequest) {
               lactancia: m.lactancia || false,
               esVotante: m.esVotante || false,
               votaEnEscuela: m.votaEnEscuela || false,
+              centroVotacion: m.centroVotacion || null,
             })),
           });
         }

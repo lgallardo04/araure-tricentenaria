@@ -162,6 +162,7 @@ model Persona {
   lactancia        Boolean         @default(false)
   esVotante        Boolean         @default(false)
   votaEnEscuela    Boolean         @default(false)
+  centroVotacion   String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 

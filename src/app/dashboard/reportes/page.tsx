@@ -72,6 +72,7 @@ export default function ReportesPage() {
 
   const [filtroComunidad, setFiltroComunidad] = useState('');
   const [filtroCalle, setFiltroCalle] = useState('');
+  const [filtroDato, setFiltroDato] = useState('');
   const [isExporting, setIsExporting] = useState(false);
 
   const { data: comunidades = [] } = useSWR<Comunidad[]>('/api/comunidades');
@@ -82,6 +83,7 @@ export default function ReportesPage() {
   const statsParams = new URLSearchParams();
   if (filtroCalle) statsParams.set('calleId', filtroCalle);
   else if (filtroComunidad) statsParams.set('comunidadId', filtroComunidad);
+  if (filtroDato) statsParams.set('filtroDato', filtroDato);
   const statsKey = `/api/estadisticas${statsParams.toString() ? '?' + statsParams.toString() : ''}`;
   const { data: stats, error, isLoading, mutate } = useSWR<Stats>(statsKey);
 
@@ -284,6 +286,24 @@ export default function ReportesPage() {
 
           <FiFilter className="w-4 h-4 text-slate-500" />
           <select
+            value={filtroDato}
+            onChange={(e) => setFiltroDato(e.target.value)}
+            className="select-field max-w-[180px] text-sm bg-blue-900/20 border-blue-500/30 text-blue-400 font-semibold"
+            title="Tipo de dato a filtrar"
+          >
+            <option value="">Filtro: Todos</option>
+            <option value="MAYORES">Mayores de Edad</option>
+            <option value="PENSIONADO">Pensionados</option>
+            <option value="DISCAPACIDAD">Con Discapacidad</option>
+            <option value="EMBARAZADA">Embarazadas</option>
+            <option value="LACTANCIA">En Lactancia</option>
+            <option value="CARNET_PATRIA">Carnet Patria</option>
+            <option value="CLAP">Recibe CLAP</option>
+          </select>
+          
+          <span className="text-slate-600 mx-1">|</span>
+
+          <select
             value={filtroComunidad}
             onChange={(e) => { setFiltroComunidad(e.target.value); setFiltroCalle(''); }}
             className="select-field max-w-[200px] text-sm"
@@ -310,23 +330,23 @@ export default function ReportesPage() {
 
       {/* Resumen en números */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="glass-card p-4 text-center">
+        <div className="glass-card p-4 text-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => setFiltroDato('')} title="Ver Todos">
           <p className="text-2xl font-bold text-blue-400">{stats.totalMiembros}</p>
           <p className="text-xs text-slate-500 mt-1">Población Total</p>
         </div>
-        <div className="glass-card p-4 text-center">
+        <div className="glass-card p-4 text-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => setFiltroDato('')} title="Ver Familias">
           <p className="text-2xl font-bold text-emerald-400">{stats.totalFamilias}</p>
           <p className="text-xs text-slate-500 mt-1">Familias</p>
         </div>
-        <div className="glass-card p-4 text-center">
+        <div className={`glass-card p-4 text-center cursor-pointer hover:bg-slate-800 transition-colors ${filtroDato === 'MAYORES' ? 'border-green-500/50 bg-slate-800/80' : ''}`} onClick={() => setFiltroDato(filtroDato === 'MAYORES' ? '' : 'MAYORES')} title="Filtrar Mayores de Edad">
           <p className="text-2xl font-bold text-green-400">{stats.totalMayores}</p>
           <p className="text-xs text-slate-500 mt-1">Mayores de Edad</p>
         </div>
-        <div className="glass-card p-4 text-center">
+        <div className={`glass-card p-4 text-center cursor-pointer hover:bg-slate-800 transition-colors ${filtroDato === 'PENSIONADO' ? 'border-yellow-500/50 bg-slate-800/80' : ''}`} onClick={() => setFiltroDato(filtroDato === 'PENSIONADO' ? '' : 'PENSIONADO')} title="Filtrar Pensionados">
           <p className="text-2xl font-bold text-yellow-400">{stats.totalPensionados}</p>
           <p className="text-xs text-slate-500 mt-1">Pensionados</p>
         </div>
-        <div className="glass-card p-4 text-center">
+        <div className={`glass-card p-4 text-center cursor-pointer hover:bg-slate-800 transition-colors ${filtroDato === 'DISCAPACIDAD' ? 'border-red-500/50 bg-slate-800/80' : ''}`} onClick={() => setFiltroDato(filtroDato === 'DISCAPACIDAD' ? '' : 'DISCAPACIDAD')} title="Filtrar Personas con Discapacidad">
           <p className="text-2xl font-bold text-red-400">{stats.totalDiscapacidad}</p>
           <p className="text-xs text-slate-500 mt-1">Con Discapacidad</p>
         </div>

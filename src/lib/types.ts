@@ -52,6 +52,7 @@ export interface PersonaBasic {
   lactancia: boolean;
   esVotante: boolean;
   votaEnEscuela: boolean;
+  centroVotacion: string | null;
 }
 
 export interface ViviendaBasic {

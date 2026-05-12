@@ -7,7 +7,8 @@
 import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { useSession } from 'next-auth/react';
-import { FiSearch, FiX, FiUsers, FiUser, FiMapPin, FiChevronDown, FiChevronUp, FiTrash2, FiHome, FiDownload } from 'react-icons/fi';
+import Link from 'next/link';
+import { FiSearch, FiX, FiUsers, FiUser, FiMapPin, FiChevronDown, FiChevronUp, FiTrash2, FiHome, FiDownload, FiEdit2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { apiFetch } from '@/lib/api';
 
@@ -24,6 +25,9 @@ interface Persona {
   discapacidad: boolean;
   embarazada: boolean;
   lactancia: boolean;
+  esVotante: boolean;
+  votaEnEscuela: boolean;
+  centroVotacion: string | null;
 }
 
 interface Familia {
@@ -155,6 +159,10 @@ export default function MisFamiliasPage() {
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="badge-blue">{fam.personas.length}</span>
                     {fam.programaSocial?.carnetPatria && <span className="badge-purple text-xs">CP</span>}
+                    <Link href={`/mi-calle/censar?edit=${fam.id}`} onClick={(e) => e.stopPropagation()}
+                      className="p-2 hover:bg-slate-700 rounded-lg text-slate-500 hover:text-blue-400 transition-colors">
+                      <FiEdit2 className="w-4 h-4" />
+                    </Link>
                     <button onClick={(e) => { e.stopPropagation(); handleDelete(fam.id, jefe?.nombre ?? ''); }}
                       className="p-2 hover:bg-slate-700 rounded-lg text-slate-500 hover:text-red-400 transition-colors">
                       <FiTrash2 className="w-4 h-4" />
