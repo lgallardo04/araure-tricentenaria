@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import { FiCheck, FiX, FiClock, FiSettings } from 'react-icons/fi';
@@ -25,6 +25,7 @@ export default function AprobacionesPage() {
   const isAdmin = session?.user?.role === 'ADMIN';
   const [filterEstado, setFilterEstado] = useState('PENDIENTE');
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const { mutate: globalMutate } = useSWRConfig();
 
   const { data: familias, error, isLoading, mutate } = useSWR<FamiliaPendiente[]>(
     isAdmin ? `/api/familias/aprobacion?estado=${filterEstado}` : null
@@ -45,6 +46,7 @@ export default function AprobacionesPage() {
       
       toast.success(`Censo MARCADO como ${nuevoEstado}`);
       mutate();
+      globalMutate('/api/familias/aprobacion/count');
     } catch (err) {
       toast.error('Error al actualizar estado del censo');
     } finally {

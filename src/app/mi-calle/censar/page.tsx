@@ -398,7 +398,7 @@ export default function CensarPage() {
   const opcionesGas = ['Directo', 'Bombona', 'Leña', 'No tiene'];
   const opcionesSiNo = ['Sí', 'No'];
   const opcionesAseo = ['Sí', 'No', 'Irregular'];
-  const opcionesTelefono = ['Fijo', 'Solo Celular', 'No tiene'];
+  const opcionesTelefono = ['Fijo', 'Solo Celular', 'Ambos', 'No tiene'];
   const estadosCiviles = ['Soltero/a', 'Casado/a', 'Concubino/a', 'Divorciado/a', 'Viudo/a'];
   const escolaridades = ['Ninguna', 'Preescolar', 'Primaria', 'Secundaria', 'Bachillerato', 'Técnico Superior', 'Universitaria', 'Postgrado'];
   const parentescos = ['Esposo/a', 'Hijo/a', 'Nieto/a', 'Padre/Madre', 'Hermano/a', 'Abuelo/a', 'Tío/a', 'Sobrino/a', 'Primo/a', 'Cuñado/a', 'Suegro/a', 'Yerno/Nuera', 'Otro'];
@@ -577,26 +577,6 @@ export default function CensarPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-slate-900/50 border border-slate-700/50 hover:bg-slate-800/50 transition-colors">
-                  <input type="checkbox" checked={programas.carnetPatria}
-                    onChange={(e) => setProgramas({ ...programas, carnetPatria: e.target.checked })}
-                    className="w-5 h-5 rounded bg-slate-800 border-slate-600 text-blue-500" />
-                  <div>
-                    <span className="text-sm text-slate-300 font-medium">Carnet de la Patria</span>
-                    <p className="text-xs text-slate-500">¿La familia posee carnet?</p>
-                  </div>
-                </label>
-                {programas.carnetPatria && (
-                  <div className="ml-8">
-                    <Opt>Código del Carnet</Opt>
-                    <input value={programas.codigoCarnetPatria}
-                      onChange={(e) => setProgramas({ ...programas, codigoCarnetPatria: e.target.value })}
-                      className="input-field text-sm" placeholder="Código del carnet" />
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-slate-900/50 border border-slate-700/50 hover:bg-slate-800/50 transition-colors">
                   <input type="checkbox" checked={programas.recibeClap}
                     onChange={(e) => setProgramas({ ...programas, recibeClap: e.target.checked })}
                     className="w-5 h-5 rounded bg-slate-800 border-slate-600 text-emerald-500" />
@@ -727,6 +707,11 @@ export default function CensarPage() {
 
           {/* Checkboxes */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3 pt-2 border-t border-slate-700/30">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={programas.carnetPatria} onChange={(e) => setProgramas({ ...programas, carnetPatria: e.target.checked })}
+                className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-indigo-500 focus:ring-indigo-500" />
+              <span className="text-sm text-slate-400">Carnet de la Patria</span>
+            </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={jefe.pensionado} onChange={(e) => setJefe({ ...jefe, pensionado: e.target.checked })}
                 className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-blue-500 focus:ring-blue-500" />

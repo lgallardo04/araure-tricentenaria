@@ -18,7 +18,7 @@ import {
   CategoryScale, LinearScale, BarElement, Title, PointElement, LineElement
 } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
-import { FiBarChart2, FiFilter, FiDroplet, FiZap, FiDownload, FiBriefcase } from 'react-icons/fi';
+import { FiBarChart2, FiFilter, FiDroplet, FiZap, FiDownload, FiBriefcase, FiUsers } from 'react-icons/fi';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title, PointElement, LineElement);
 
@@ -92,6 +92,18 @@ export default function ReportesPage() {
   else if (filtroComunidad) localesParams.set('comunidadId', filtroComunidad);
   const localesKey = `/api/locales-comerciales${localesParams.toString() ? '?' + localesParams.toString() : ''}`;
   const { data: locales = [] } = useSWR<any[]>(localesKey);
+
+  // Reporte de jefes
+  interface JefeReporte {
+    id: string;
+    nombre: string;
+    cedula: string | null;
+    telefono: string | null;
+    rol: string;
+    asignacion: string;
+    totalFamilias: number;
+  }
+  const { data: jefesReporte = [] } = useSWR<JefeReporte[]>('/api/reportes/jefes');
 
   const exportPDF = async () => {
     try {
@@ -467,6 +479,59 @@ export default function ReportesPage() {
           <div className="h-64 md:h-72"><Bar data={comunidadData} options={barOpts as any} /></div>
         </div>
       </div>
+
+      {/* Reporte de Jefes de Comunidad y Jefes de Calle */}
+      <h3 className="text-lg font-semibold text-white pt-6 break-before-page flex items-center gap-2">
+        <FiUsers className="text-indigo-500 w-5 h-5" /> Reporte de Jefes y Familias Asignadas ({jefesReporte.length})
+      </h3>
+
+      {jefesReporte.length === 0 ? (
+        <div className="glass-card p-6 text-center text-slate-500">
+          <p>No hay jefes registrados actualmente.</p>
+        </div>
+      ) : (
+        <div className="glass-card p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-800/50 border-b border-slate-700">
+                  <th className="p-4 text-xs font-semibold uppercase text-slate-400">Nombre</th>
+                  <th className="p-4 text-xs font-semibold uppercase text-slate-400">Cédula</th>
+                  <th className="p-4 text-xs font-semibold uppercase text-slate-400">Rol</th>
+                  <th className="p-4 text-xs font-semibold uppercase text-slate-400">Asignación</th>
+                  <th className="p-4 text-xs font-semibold uppercase text-slate-400 text-center">Familias Asignadas</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {jefesReporte.map((jefe) => (
+                  <tr key={jefe.id} className="hover:bg-slate-800/30 transition-colors">
+                    <td className="p-4">
+                      <p className="font-medium text-slate-200">{jefe.nombre}</p>
+                      {jefe.telefono && <p className="text-xs text-slate-500">{jefe.telefono}</p>}
+                    </td>
+                    <td className="p-4 text-sm text-slate-300">{jefe.cedula || '—'}</td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                        jefe.rol === 'Jefe de Comunidad'
+                          ? 'bg-indigo-500/10 text-indigo-400'
+                          : 'bg-teal-500/10 text-teal-400'
+                      }`}>
+                        {jefe.rol}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm text-slate-300 max-w-[200px] truncate" title={jefe.asignacion}>
+                      {jefe.asignacion}
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className="text-lg font-bold text-blue-400">{jefe.totalFamilias}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Locales Comerciales */}
       <h3 className="text-lg font-semibold text-white pt-6 break-before-page flex items-center gap-2">

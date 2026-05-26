@@ -3,6 +3,8 @@ import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // Endpoint ultraligero exclusivo para obtener métricas de pendientes en la interfaz global (ej. Sidebar)
 export async function GET() {
   try {
