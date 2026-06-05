@@ -1089,14 +1089,6 @@ export default function CensarPage() {
                     <p className="text-xs text-slate-500">¿La familia posee carnet?</p>
                   </div>
                 </label>
-                {programas.carnetPatria && (
-                  <div className="ml-8">
-                    <Opt>Código del Carnet</Opt>
-                    <input value={programas.codigoCarnetPatria}
-                      onChange={(e) => setProgramas({ ...programas, codigoCarnetPatria: e.target.value })}
-                      className="input-field text-sm" placeholder="Código del carnet" />
-                  </div>
-                )}
               </div>
 
               <div className="space-y-3">
@@ -1262,19 +1254,10 @@ export default function CensarPage() {
             </label>
           </div>
           {jefe.esVotante && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-              <div>
-                <Opt>Centro de Votación</Opt>
-                <input value={jefe.centroVotacion || ''} onChange={(e) => setJefe({ ...jefe, centroVotacion: e.target.value })}
-                  className="input-field" placeholder="Nombre de la escuela o centro..." />
-              </div>
-              <div className="flex items-end pb-2">
-                <label className="flex items-center gap-2 cursor-pointer bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 w-full">
-                  <input type="checkbox" checked={jefe.votaEnEscuela} onChange={(e) => setJefe({ ...jefe, votaEnEscuela: e.target.checked })}
-                    className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-teal-500 focus:ring-teal-500" />
-                  <span className="text-sm text-slate-300">¿Vota en la Escuela Tricentenaria?</span>
-                </label>
-              </div>
+            <div className="mt-2">
+              <Opt>Centro de Votación</Opt>
+              <input value={jefe.centroVotacion || ''} onChange={(e) => setJefe({ ...jefe, centroVotacion: e.target.value })}
+                className="input-field" placeholder="Nombre de la escuela o centro..." />
             </div>
           )}
           {jefe.discapacidad && (
@@ -1420,19 +1403,10 @@ export default function CensarPage() {
                       )}
                     </div>
                     {m.esVotante && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-700/30">
-                        <div>
-                          <Opt>Centro de Votación</Opt>
-                          <input value={m.centroVotacion || ''} onChange={(e) => updateMiembro(i, 'centroVotacion', e.target.value)}
-                            className="input-field text-sm py-2" placeholder="Lugar de votación..." />
-                        </div>
-                        <div className="flex items-end pb-1">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" checked={m.votaEnEscuela} onChange={(e) => updateMiembro(i, 'votaEnEscuela', e.target.checked)}
-                              className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-teal-500" />
-                            <span className="text-sm text-slate-300">¿Vota en la Escuela Tricentenaria?</span>
-                          </label>
-                        </div>
+                      <div className="mt-3 pt-3 border-t border-slate-700/30">
+                        <Opt>Centro de Votación</Opt>
+                        <input value={m.centroVotacion || ''} onChange={(e) => updateMiembro(i, 'centroVotacion', e.target.value)}
+                          className="input-field text-sm py-2" placeholder="Lugar de votación..." />
                       </div>
                     )}
 

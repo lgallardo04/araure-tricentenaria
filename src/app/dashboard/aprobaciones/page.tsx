@@ -43,7 +43,6 @@ export default function AprobacionesPage() {
 
       if (!res.ok) throw new Error('Falló la actualización');
       
-      toast.success(`Censo MARCADO como ${nuevoEstado}`);
       mutate();
     } catch (err) {
       toast.error('Error al actualizar estado del censo');
