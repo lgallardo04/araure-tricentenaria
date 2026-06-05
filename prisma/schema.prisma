@@ -71,6 +71,7 @@ model Familia {
   estado          EstadoFamilia   @default(PENDIENTE)
   aprobadoPorId   String?
   fechaAprobacion DateTime?
+  activo          Boolean         @default(true)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -98,6 +99,7 @@ model Vivienda {
   cantidadHabitaciones Int?
   cantidadBanos        Int?
   observaciones        String?
+  activo               Boolean            @default(true)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -163,6 +165,8 @@ model Persona {
   esVotante        Boolean         @default(false)
   votaEnEscuela    Boolean         @default(false)
   centroVotacion   String?
+  activo           Boolean         @default(true)
+  motivoInactivo   String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 

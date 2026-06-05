@@ -68,6 +68,9 @@ export async function buildFamiliaListWhere(
     }
   }
 
+  // Filtrar solo las familias activas (soft-delete)
+  where.activo = true;
+
   // Búsqueda normalizada: buscar en la tabla Persona (jefes)
   if (search) {
     where.OR = [

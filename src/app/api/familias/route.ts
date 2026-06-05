@@ -25,7 +25,10 @@ const familiaFullInclude = {
     include: { servicios: true },
   },
   programaSocial: true,
-  personas: { orderBy: [{ esJefe: 'desc' as const }, { createdAt: 'asc' as const }] },
+  personas: {
+    include: { registrosSalud: true },
+    orderBy: [{ esJefe: 'desc' as const }, { createdAt: 'asc' as const }],
+  },
 };
 
 async function assertFamiliaAccess(session: Session, familiaId: string) {
@@ -241,7 +244,7 @@ export async function POST(req: NextRequest) {
       }
 
       // 5. Jefe de familia
-      await tx.persona.create({
+      const jefePersona = await tx.persona.create({
         data: {
           familiaId: fam.id,
           esJefe: true,
@@ -269,12 +272,28 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      if (jefe.registrosSalud && jefe.registrosSalud.length > 0) {
+        await tx.registroSalud.createMany({
+          data: jefe.registrosSalud.map((r: any) => ({
+            personaId: jefePersona.id,
+            enfermedadId: r.enfermedadId,
+            medicamentoId: r.medicamentoId || null,
+            dosis: r.dosis || null,
+            frecuencia: r.frecuencia || null,
+            cantidadMes: r.cantidadMes ? parseFloat(String(r.cantidadMes)) : null,
+            severidad: r.severidad || null,
+            observaciones: r.observaciones || null,
+            activo: r.activo !== undefined ? r.activo : true,
+          })),
+        });
+      }
+
       // 6. Miembros adicionales
       if (miembros && miembros.length > 0) {
         const validMembers = miembros.filter((m) => m.nombre?.trim());
-        if (validMembers.length > 0) {
-          await tx.persona.createMany({
-            data: validMembers.map((m) => ({
+        for (const m of validMembers) {
+          const miembroPersona = await tx.persona.create({
+            data: {
               familiaId: fam.id,
               esJefe: false,
               nombre: m.nombre,
@@ -289,7 +308,7 @@ export async function POST(req: NextRequest) {
               escolaridad: m.escolaridad || null,
               ocupacion: m.ocupacion || null,
               lugarTrabajo: m.lugarTrabajo || null,
-              enfermedad: null,
+              enfermedad: m.enfermedad || null,
               pensionado: m.pensionado || false,
               discapacidad: m.discapacidad || false,
               tipoDiscapacidad: m.tipoDiscapacidad || null,
@@ -298,8 +317,24 @@ export async function POST(req: NextRequest) {
               esVotante: m.esVotante || false,
               votaEnEscuela: m.votaEnEscuela || false,
               centroVotacion: m.centroVotacion || null,
-            })),
+            },
           });
+
+          if (m.registrosSalud && m.registrosSalud.length > 0) {
+            await tx.registroSalud.createMany({
+              data: m.registrosSalud.map((r: any) => ({
+                personaId: miembroPersona.id,
+                enfermedadId: r.enfermedadId,
+                medicamentoId: r.medicamentoId || null,
+                dosis: r.dosis || null,
+                frecuencia: r.frecuencia || null,
+                cantidadMes: r.cantidadMes ? parseFloat(String(r.cantidadMes)) : null,
+                severidad: r.severidad || null,
+                observaciones: r.observaciones || null,
+                activo: r.activo !== undefined ? r.activo : true,
+              })),
+            });
+          }
         }
       }
 
@@ -339,18 +374,19 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const { id, calleId, vivienda, servicios, programaSocial, jefe, miembros } = parsed.data;
+    const { id, calleId, vivienda, servicios, programaSocial, jefe, miembros, activo } = parsed.data;
 
     const denied = await assertFamiliaAccess(session, id);
     if (denied) return denied;
 
     await prisma.$transaction(async (tx) => {
-      // Actualizar calle y estado
+      // Actualizar calle, estado y activo
       await tx.familia.update({
         where: { id },
         data: {
           ...(calleId ? { calleId } : {}),
-          estado: 'PENDIENTE',
+          ...(activo !== undefined ? { activo } : {}),
+          ...(activo !== false ? { estado: 'PENDIENTE' } : {}),
         },
       });
 
@@ -446,7 +482,7 @@ export async function PUT(req: NextRequest) {
       // Reemplazar jefe
       if (jefe) {
         await tx.persona.deleteMany({ where: { familiaId: id, esJefe: true } });
-        await tx.persona.create({
+        const jefePersona = await tx.persona.create({
           data: {
             familiaId: id,
             esJefe: true,
@@ -473,15 +509,31 @@ export async function PUT(req: NextRequest) {
             centroVotacion: jefe.centroVotacion || null,
           },
         });
+
+        if (jefe.registrosSalud && jefe.registrosSalud.length > 0) {
+          await tx.registroSalud.createMany({
+            data: jefe.registrosSalud.map((r: any) => ({
+              personaId: jefePersona.id,
+              enfermedadId: r.enfermedadId,
+              medicamentoId: r.medicamentoId || null,
+              dosis: r.dosis || null,
+              frecuencia: r.frecuencia || null,
+              cantidadMes: r.cantidadMes ? parseFloat(String(r.cantidadMes)) : null,
+              severidad: r.severidad || null,
+              observaciones: r.observaciones || null,
+              activo: r.activo !== undefined ? r.activo : true,
+            })),
+          });
+        }
       }
 
       // Reemplazar miembros
       if (miembros) {
         await tx.persona.deleteMany({ where: { familiaId: id, esJefe: false } });
         const validMembers = miembros.filter((m) => m.nombre?.trim());
-        if (validMembers.length > 0) {
-          await tx.persona.createMany({
-            data: validMembers.map((m) => ({
+        for (const m of validMembers) {
+          const miembroPersona = await tx.persona.create({
+            data: {
               familiaId: id,
               esJefe: false,
               nombre: m.nombre,
@@ -496,7 +548,7 @@ export async function PUT(req: NextRequest) {
               escolaridad: m.escolaridad || null,
               ocupacion: m.ocupacion || null,
               lugarTrabajo: m.lugarTrabajo || null,
-              enfermedad: null,
+              enfermedad: m.enfermedad || null,
               pensionado: m.pensionado || false,
               discapacidad: m.discapacidad || false,
               tipoDiscapacidad: m.tipoDiscapacidad || null,
@@ -505,8 +557,24 @@ export async function PUT(req: NextRequest) {
               esVotante: m.esVotante || false,
               votaEnEscuela: m.votaEnEscuela || false,
               centroVotacion: m.centroVotacion || null,
-            })),
+            },
           });
+
+          if (m.registrosSalud && m.registrosSalud.length > 0) {
+            await tx.registroSalud.createMany({
+              data: m.registrosSalud.map((r: any) => ({
+                personaId: miembroPersona.id,
+                enfermedadId: r.enfermedadId,
+                medicamentoId: r.medicamentoId || null,
+                dosis: r.dosis || null,
+                frecuencia: r.frecuencia || null,
+                cantidadMes: r.cantidadMes ? parseFloat(String(r.cantidadMes)) : null,
+                severidad: r.severidad || null,
+                observaciones: r.observaciones || null,
+                activo: r.activo !== undefined ? r.activo : true,
+              })),
+            });
+          }
         }
       }
     });
@@ -534,6 +602,9 @@ export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    if (session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Solo los administradores pueden eliminar registros permanentemente' }, { status: 403 });
+    }
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');

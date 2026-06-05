@@ -30,12 +30,12 @@ export async function GET() {
   }
 }
 
-// POST: Crear enfermedad (solo Admin)
+// POST: Crear enfermedad (cualquier usuario autenticado)
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    if (!session) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     const { nombre, tipo, descripcion } = await req.json();
@@ -56,12 +56,12 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PUT: Actualizar enfermedad
+// PUT: Actualizar enfermedad (cualquier usuario autenticado)
 export async function PUT(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    if (!session) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     const { id, nombre, tipo, descripcion } = await req.json();

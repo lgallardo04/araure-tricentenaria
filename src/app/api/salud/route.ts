@@ -128,11 +128,47 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE: Eliminar registro de salud
+// PUT: Actualizar registro de salud (incluyendo desactivación)
+export async function PUT(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+
+    const body = await req.json();
+    const { id, activo, dosis, frecuencia, cantidadMes, severidad, observaciones } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+    }
+
+    const updateData: any = {};
+    if (activo !== undefined) updateData.activo = activo;
+    if (dosis !== undefined) updateData.dosis = dosis;
+    if (frecuencia !== undefined) updateData.frecuencia = frecuencia;
+    if (cantidadMes !== undefined) updateData.cantidadMes = cantidadMes ? parseFloat(String(cantidadMes)) : null;
+    if (severidad !== undefined) updateData.severidad = severidad;
+    if (observaciones !== undefined) updateData.observaciones = observaciones;
+
+    const registro = await prisma.registroSalud.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return NextResponse.json(registro);
+  } catch (error) {
+    console.error('Error al actualizar registro de salud:', error);
+    return NextResponse.json({ error: 'Error al actualizar registro' }, { status: 500 });
+  }
+}
+
+// DELETE: Eliminar registro de salud (Solo Admin)
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    if (session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Solo los administradores pueden eliminar registros permanentemente' }, { status: 403 });
+    }
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');

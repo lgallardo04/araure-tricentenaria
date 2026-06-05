@@ -216,28 +216,21 @@ export async function DELETE(req: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
+    if (session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Solo los administradores pueden eliminar registros permanentemente' }, { status: 403 });
+    }
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
 
-    const role = session.user.role;
-
     // Verificar acceso
     const existingLocal = await prisma.localComercial.findUnique({
       where: { id },
-      include: { calle: { select: { jefeCalleId: true, comunidadId: true } } },
     });
 
     if (!existingLocal) {
       return NextResponse.json({ error: 'Local no encontrado' }, { status: 404 });
-    }
-
-    if (role === 'JEFE_CALLE' && existingLocal.calle.jefeCalleId !== session.user.id) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    }
-    if (role === 'JEFE_COMUNIDAD' && existingLocal.calle.comunidadId !== session.user.comunidadId) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
     await prisma.localComercial.delete({ where: { id } });

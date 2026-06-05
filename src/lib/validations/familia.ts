@@ -2,6 +2,20 @@ import { z } from 'zod';
 
 const optStr = z.union([z.string(), z.null()]).optional();
 
+// ─── Registro de Salud ───────────────────────────────────────
+
+export const registroSaludSchema = z.object({
+  id: z.string().optional(),
+  enfermedadId: z.string().min(1),
+  medicamentoId: z.string().nullable().optional(),
+  dosis: z.string().nullable().optional(),
+  frecuencia: z.string().nullable().optional(),
+  cantidadMes: z.union([z.string(), z.number(), z.null()]).optional(),
+  severidad: z.string().nullable().optional(),
+  observaciones: z.string().nullable().optional(),
+  activo: z.boolean().optional(),
+});
+
 // ─── Persona (jefe + miembros, estructura unificada) ─────────
 
 export const personaSchema = z.object({
@@ -27,6 +41,7 @@ export const personaSchema = z.object({
   esVotante: z.boolean().optional(),
   votaEnEscuela: z.boolean().optional(),
   centroVotacion: optStr,
+  registrosSalud: z.array(registroSaludSchema).optional(),
 });
 
 // ─── Vivienda ────────────────────────────────────────────────
@@ -80,4 +95,5 @@ export const familiaUpdateSchema = z.object({
   programaSocial: programaSocialSchema.optional(),
   jefe: personaSchema.optional(),
   miembros: z.array(personaSchema).optional(),
+  activo: z.boolean().optional(),
 });

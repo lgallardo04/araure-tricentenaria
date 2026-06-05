@@ -30,12 +30,12 @@ export async function GET() {
   }
 }
 
-// POST: Crear medicamento (solo Admin)
+// POST: Crear medicamento (cualquier usuario autenticado)
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    if (!session) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     const { nombre, principioActivo, presentacion, unidad, descripcion } = await req.json();
@@ -62,12 +62,12 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PUT: Actualizar medicamento
+// PUT: Actualizar medicamento (cualquier usuario autenticado)
 export async function PUT(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    if (!session) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     const { id, nombre, principioActivo, presentacion, unidad, descripcion } = await req.json();

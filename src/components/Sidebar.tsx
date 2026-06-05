@@ -1,7 +1,6 @@
 // =============================================================
 // Componente Sidebar
 // Navegación lateral con menús según rol (3 niveles)
-// Incluye enlace a Demografía para Admin y Jefe de Comunidad
 // =============================================================
 
 'use client';
@@ -13,7 +12,7 @@ import useSWR from 'swr';
 import { useState } from 'react';
 import {
   FiHome, FiUsers, FiMap, FiMapPin, FiBarChart2,
-  FiChevronDown, FiChevronRight, FiX, FiShield, FiClipboard, FiSettings, FiActivity, FiCheckSquare
+  FiChevronDown, FiChevronRight, FiX, FiShield, FiClipboard, FiSettings, FiCheckSquare
 } from 'react-icons/fi';
 
 interface Comunidad {
@@ -129,13 +128,7 @@ export default function Sidebar({ isOpen, onClose, onSelectComunidad }: SidebarP
                 <FiClipboard className="w-5 h-5" /><span>Familias Censadas</span>
               </Link>
 
-              <Link href="/dashboard/demografia" className={`sidebar-link ${isActive('/dashboard/demografia') ? 'active' : ''}`} onClick={onClose}>
-                <FiUsers className="w-5 h-5" /><span>Demografía</span>
-              </Link>
 
-              <Link href="/dashboard/salud" className={`sidebar-link ${isActive('/dashboard/salud') || pathname?.startsWith('/dashboard/salud') ? 'active' : ''}`} onClick={onClose}>
-                <FiActivity className="w-5 h-5" /><span>Salud</span>
-              </Link>
               
               <Link href="/dashboard/aprobaciones" className={`sidebar-link ${isActive('/dashboard/aprobaciones') ? 'active' : ''}`} onClick={onClose}>
                 <FiCheckSquare className="w-5 h-5 text-emerald-400" />
@@ -176,13 +169,7 @@ export default function Sidebar({ isOpen, onClose, onSelectComunidad }: SidebarP
                 <FiClipboard className="w-5 h-5" /><span>Familias Censadas</span>
               </Link>
 
-              <Link href="/dashboard/demografia" className={`sidebar-link ${isActive('/dashboard/demografia') ? 'active' : ''}`} onClick={onClose}>
-                <FiUsers className="w-5 h-5" /><span>Demografía</span>
-              </Link>
 
-              <Link href="/dashboard/salud" className={`sidebar-link ${isActive('/dashboard/salud') || pathname?.startsWith('/dashboard/salud') ? 'active' : ''}`} onClick={onClose}>
-                <FiActivity className="w-5 h-5" /><span>Salud</span>
-              </Link>
 
               <Link href="/dashboard/reportes" className={`sidebar-link ${isActive('/dashboard/reportes') ? 'active' : ''}`} onClick={onClose}>
                 <FiBarChart2 className="w-5 h-5" /><span>Reportes</span>

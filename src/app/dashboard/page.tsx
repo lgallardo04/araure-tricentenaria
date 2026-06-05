@@ -178,13 +178,9 @@ export default function DashboardPage() {
   const quickActions = isAdmin ? [
     { label: 'Gestionar Usuarios', href: '/dashboard/jefes-calle', icon: FiSettings, color: 'bg-purple-500/20 text-purple-400' },
     { label: 'Ver Comunidades', href: '/dashboard/comunidades', icon: FiMap, color: 'bg-blue-500/20 text-blue-400' },
-    { label: 'Salud', href: '/dashboard/salud', icon: FiActivity, color: 'bg-emerald-500/20 text-emerald-400' },
-    { label: 'Demografía', href: '/dashboard/demografia', icon: FiUsers, color: 'bg-pink-500/20 text-pink-400' },
     { label: 'Reportes', href: '/dashboard/reportes', icon: FiBarChart2, color: 'bg-cyan-500/20 text-cyan-400' },
   ] : [
     { label: 'Ver Calles', href: '/dashboard/calles', icon: FiMapPin, color: 'bg-blue-500/20 text-blue-400' },
-    { label: 'Salud', href: '/dashboard/salud', icon: FiActivity, color: 'bg-emerald-500/20 text-emerald-400' },
-    { label: 'Demografía', href: '/dashboard/demografia', icon: FiUsers, color: 'bg-pink-500/20 text-pink-400' },
     { label: 'Reportes', href: '/dashboard/reportes', icon: FiBarChart2, color: 'bg-cyan-500/20 text-cyan-400' },
   ];
 

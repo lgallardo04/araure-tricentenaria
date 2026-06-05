@@ -9,9 +9,11 @@
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import useSWR from 'swr';
 import {
   FiPlus, FiTrash2, FiSave, FiUser, FiHome, FiUsers,
-  FiZap, FiCheckCircle, FiAlertCircle, FiChevronLeft, FiChevronRight
+  FiZap, FiCheckCircle, FiAlertCircle, FiChevronLeft, FiChevronRight,
+  FiActivity, FiHeart, FiSlash
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { apiFetch } from '@/lib/api';
@@ -44,6 +46,7 @@ interface MiembroForm {
   esVotante: boolean;
   votaEnEscuela: boolean;
   centroVotacion: string;
+  registrosSalud: any[];
 }
 
 const miembroVacio: MiembroForm = {
@@ -51,8 +54,472 @@ const miembroVacio: MiembroForm = {
   parentesco: '', estadoCivil: '', escolaridad: '', ocupacion: '', lugarTrabajo: '',
   salud: '', pensionado: false, discapacidad: false, tipoDiscapacidad: '',
   embarazada: false, lactancia: false, esVotante: false, votaEnEscuela: false,
-  centroVotacion: '',
+  centroVotacion: '', registrosSalud: [],
 };
+
+function HealthRecordsSection({
+  registros,
+  onChange,
+  catalogEnfermedades,
+  catalogMedicamentos,
+  onMutateEnfermedades,
+  onMutateMedicamentos,
+}: {
+  registros: any[];
+  onChange: (updated: any[]) => void;
+  catalogEnfermedades: any[];
+  catalogMedicamentos: any[];
+  onMutateEnfermedades: () => void;
+  onMutateMedicamentos: () => void;
+}) {
+  const [showEnfModal, setShowEnfModal] = useState(false);
+  const [showMedModal, setShowMedModal] = useState(false);
+  const [activeRowIdx, setActiveRowIdx] = useState<number | null>(null);
+
+  // New disease form state
+  const [newEnf, setNewEnf] = useState({ nombre: '', tipo: 'Crónica', descripcion: '' });
+  const [savingEnf, setSavingEnf] = useState(false);
+
+  // New medicine form state
+  const [newMed, setNewMed] = useState({ nombre: '', principioActivo: '', presentacion: '', unidad: '', descripcion: '' });
+  const [savingMed, setSavingMed] = useState(false);
+
+  const addRecord = () => {
+    onChange([
+      ...(registros || []),
+      {
+        enfermedadId: '',
+        medicamentoId: '',
+        dosis: '',
+        frecuencia: '',
+        cantidadMes: '',
+        severidad: '',
+        observaciones: '',
+        activo: true,
+      },
+    ]);
+  };
+
+  const removeRecord = (index: number) => {
+    onChange((registros || []).filter((_, i) => i !== index));
+  };
+
+  const updateRecord = (index: number, field: string, value: any) => {
+    const updated = [...(registros || [])];
+    updated[index] = { ...updated[index], [field]: value };
+    onChange(updated);
+  };
+
+  const handleCreateEnfermedad = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEnf.nombre.trim()) {
+      toast.error('El nombre de la enfermedad es obligatorio');
+      return;
+    }
+    setSavingEnf(true);
+    try {
+      const res = await apiFetch('/api/enfermedades', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEnf),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Error al guardar la enfermedad');
+      }
+      const data = await res.json();
+      toast.success('Enfermedad agregada al catálogo');
+      
+      // Mutar catálogo
+      onMutateEnfermedades();
+      
+      // Seleccionar automáticamente en la fila activa
+      if (activeRowIdx !== null) {
+        updateRecord(activeRowIdx, 'enfermedadId', data.id);
+      }
+      
+      // Cerrar y limpiar
+      setShowEnfModal(false);
+      setNewEnf({ nombre: '', tipo: 'Crónica', descripcion: '' });
+      setActiveRowIdx(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Error al crear la enfermedad');
+    } finally {
+      setSavingEnf(false);
+    }
+  };
+
+  const handleCreateMedicamento = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMed.nombre.trim() || !newMed.principioActivo.trim()) {
+      toast.error('El nombre y el principio activo son obligatorios');
+      return;
+    }
+    setSavingMed(true);
+    try {
+      const res = await apiFetch('/api/medicamentos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newMed),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Error al guardar el medicamento');
+      }
+      const data = await res.json();
+      toast.success('Medicamento agregado al catálogo');
+      
+      // Mutar catálogo
+      onMutateMedicamentos();
+      
+      // Seleccionar automáticamente en la fila activa
+      if (activeRowIdx !== null) {
+        updateRecord(activeRowIdx, 'medicamentoId', data.id);
+      }
+      
+      // Cerrar y limpiar
+      setShowMedModal(false);
+      setNewMed({ nombre: '', principioActivo: '', presentacion: '', unidad: '', descripcion: '' });
+      setActiveRowIdx(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Error al crear el medicamento');
+    } finally {
+      setSavingMed(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 mt-4 border-t border-slate-700/50 pt-4 w-full">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-slate-300 flex items-center gap-1.5">
+          <FiActivity className="text-emerald-400 w-4 h-4" />
+          Registros de Salud / Tratamientos ({(registros || []).length})
+        </h4>
+        <button
+          type="button"
+          onClick={addRecord}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 transition-all"
+        >
+          <FiPlus className="w-3.5 h-3.5" /> Agregar Diagnóstico
+        </button>
+      </div>
+
+      {(registros || []).length === 0 ? (
+        <p className="text-xs text-slate-500 italic">No se han registrado diagnósticos de salud para esta persona.</p>
+      ) : (
+        <div className="space-y-3">
+          {(registros || []).map((reg, idx) => (
+            <div key={idx} className="p-3 bg-slate-950/40 rounded-xl border border-slate-800/80 relative space-y-3">
+              <button
+                type="button"
+                onClick={() => removeRecord(idx)}
+                className="absolute top-2 right-2 p-1 hover:bg-red-500/20 rounded text-slate-500 hover:text-red-400 transition-colors"
+                title="Eliminar diagnóstico"
+              >
+                <FiTrash2 className="w-3.5 h-3.5" />
+              </button>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-6">
+                <div>
+                  <label className="text-[11px] font-medium text-slate-400 block mb-1">Enfermedad *</label>
+                  <div className="flex gap-1.5">
+                    <select
+                      value={reg.enfermedadId}
+                      onChange={(e) => updateRecord(idx, 'enfermedadId', e.target.value)}
+                      className="select-field text-xs py-1.5 flex-1"
+                      required
+                    >
+                      <option value="">Seleccionar enfermedad...</option>
+                      {catalogEnfermedades.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.nombre} ({e.tipo})
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveRowIdx(idx);
+                        setShowEnfModal(true);
+                      }}
+                      className="p-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg hover:bg-blue-600/30 transition-all flex-shrink-0"
+                      title="Nueva enfermedad"
+                    >
+                      <FiPlus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-medium text-slate-400 block mb-1">Medicamento (opcional)</label>
+                  <div className="flex gap-1.5">
+                    <select
+                      value={reg.medicamentoId || ''}
+                      onChange={(e) => updateRecord(idx, 'medicamentoId', e.target.value || null)}
+                      className="select-field text-xs py-1.5 flex-1"
+                    >
+                      <option value="">Ninguno / No requiere</option>
+                      {catalogMedicamentos.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.nombre} — {m.principioActivo} {m.presentacion ? `(${m.presentacion})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveRowIdx(idx);
+                        setShowMedModal(true);
+                      }}
+                      className="p-2 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded-lg hover:bg-emerald-600/30 transition-all flex-shrink-0"
+                      title="Nuevo medicamento"
+                    >
+                      <FiPlus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dosis, frecuencia, cantidad, severidad */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-slate-400 block mb-1">Dosis</label>
+                  <input
+                    type="text"
+                    value={reg.dosis || ''}
+                    onChange={(e) => updateRecord(idx, 'dosis', e.target.value)}
+                    className="input-field text-xs py-1.5"
+                    placeholder="Ej: 1 comp"
+                    disabled={!reg.medicamentoId}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-slate-400 block mb-1">Frecuencia</label>
+                  <select
+                    value={reg.frecuencia || ''}
+                    onChange={(e) => updateRecord(idx, 'frecuencia', e.target.value)}
+                    className="select-field text-xs py-1.5"
+                    disabled={!reg.medicamentoId}
+                  >
+                    <option value="">Seleccionar...</option>
+                    <option>Diaria</option>
+                    <option>Semanal</option>
+                    <option>Mensual</option>
+                    <option>Según necesidad</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-slate-400 block mb-1">Cant./Mes</label>
+                  <input
+                    type="number"
+                    step="1"
+                    value={reg.cantidadMes || ''}
+                    onChange={(e) => updateRecord(idx, 'cantidadMes', e.target.value)}
+                    className="input-field text-xs py-1.5"
+                    placeholder="Ej: 30"
+                    disabled={!reg.medicamentoId}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-slate-400 block mb-1">Severidad</label>
+                  <select
+                    value={reg.severidad || ''}
+                    onChange={(e) => updateRecord(idx, 'severidad', e.target.value)}
+                    className="select-field text-xs py-1.5"
+                  >
+                    <option value="">Seleccionar...</option>
+                    <option>Leve</option>
+                    <option>Moderada</option>
+                    <option>Severa</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 items-center">
+                <div className="flex-1 w-full">
+                  <input
+                    type="text"
+                    value={reg.observaciones || ''}
+                    onChange={(e) => updateRecord(idx, 'observaciones', e.target.value)}
+                    className="input-field text-xs py-1.5"
+                    placeholder="Observaciones de salud o dosis..."
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reg.activo !== false}
+                      onChange={(e) => updateRecord(idx, 'activo', e.target.checked)}
+                      className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-emerald-500 focus:ring-emerald-500"
+                    />
+                    <span className="text-xs text-slate-400">Activo</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal Nueva Enfermedad */}
+      {showEnfModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700/60 rounded-2xl p-6 w-full max-w-md mx-4 animate-fade-in shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <FiActivity className="text-blue-400 w-5 h-5" /> Registrar Nueva Enfermedad
+            </h3>
+            <form onSubmit={handleCreateEnfermedad} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-400 block mb-1">Nombre de la Enfermedad *</label>
+                <input
+                  type="text"
+                  value={newEnf.nombre}
+                  onChange={(e) => setNewEnf({ ...newEnf, nombre: e.target.value })}
+                  className="input-field text-sm"
+                  placeholder="Ej: Hipertensión Arterial"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 block mb-1">Tipo *</label>
+                <select
+                  value={newEnf.tipo}
+                  onChange={(e) => setNewEnf({ ...newEnf, tipo: e.target.value })}
+                  className="select-field text-sm"
+                >
+                  <option value="Crónica">Crónica</option>
+                  <option value="Aguda">Aguda</option>
+                  <option value="Infecciosa">Infecciosa</option>
+                  <option value="Degenerativa">Degenerativa</option>
+                  <option value="Mental">Mental</option>
+                  <option value="Otra">Otra</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 block mb-1">Descripción (Opcional)</label>
+                <textarea
+                  value={newEnf.descripcion}
+                  onChange={(e) => setNewEnf({ ...newEnf, descripcion: e.target.value })}
+                  className="input-field text-sm"
+                  rows={2}
+                  placeholder="Detalles sobre síntomas o clasificación..."
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEnfModal(false);
+                    setNewEnf({ nombre: '', tipo: 'Crónica', descripcion: '' });
+                    setActiveRowIdx(null);
+                  }}
+                  className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEnf}
+                  className="btn-primary px-5 py-2 text-sm disabled:opacity-50"
+                >
+                  {savingEnf ? 'Guardando...' : 'Crear Enfermedad'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nuevo Medicamento */}
+      {showMedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700/60 rounded-2xl p-6 w-full max-w-md mx-4 animate-fade-in shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <FiActivity className="text-emerald-400 w-5 h-5" /> Registrar Nuevo Medicamento
+            </h3>
+            <form onSubmit={handleCreateMedicamento} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-400 block mb-1">Nombre Comercial / Común *</label>
+                <input
+                  type="text"
+                  value={newMed.nombre}
+                  onChange={(e) => setNewMed({ ...newMed, nombre: e.target.value })}
+                  className="input-field text-sm"
+                  placeholder="Ej: Losartán Potásico"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 block mb-1">Principio Activo *</label>
+                <input
+                  type="text"
+                  value={newMed.principioActivo}
+                  onChange={(e) => setNewMed({ ...newMed, principioActivo: e.target.value })}
+                  className="input-field text-sm"
+                  placeholder="Ej: Losartán"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">Presentación (Opcional)</label>
+                  <input
+                    type="text"
+                    value={newMed.presentacion}
+                    onChange={(e) => setNewMed({ ...newMed, presentacion: e.target.value })}
+                    className="input-field text-sm"
+                    placeholder="Ej: Tabletas, Suspensión..."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">Unidad (Opcional)</label>
+                  <input
+                    type="text"
+                    value={newMed.unidad}
+                    onChange={(e) => setNewMed({ ...newMed, unidad: e.target.value })}
+                    className="input-field text-sm"
+                    placeholder="Ej: 50mg, 100ml..."
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 block mb-1">Descripción / Indicaciones (Opcional)</label>
+                <textarea
+                  value={newMed.descripcion}
+                  onChange={(e) => setNewMed({ ...newMed, descripcion: e.target.value })}
+                  className="input-field text-sm"
+                  rows={2}
+                  placeholder="Uso, laboratorio u otros detalles..."
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMedModal(false);
+                    setNewMed({ nombre: '', principioActivo: '', presentacion: '', unidad: '', descripcion: '' });
+                    setActiveRowIdx(null);
+                  }}
+                  className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingMed}
+                  className="btn-primary px-5 py-2 text-sm disabled:opacity-50"
+                >
+                  {savingMed ? 'Guardando...' : 'Crear Medicamento'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CensarPage() {
   const { data: session } = useSession();
@@ -64,6 +531,10 @@ export default function CensarPage() {
 
   const editId = searchParams.get('edit');
   const [calleId, setCalleId] = useState(searchParams.get('calleId') || '');
+
+  // Catálogos cargados de la base de datos
+  const { data: catalogEnfermedades = [], mutate: mutateEnfermedades } = useSWR<any[]>('/api/enfermedades');
+  const { data: catalogMedicamentos = [], mutate: mutateMedicamentos } = useSWR<any[]>('/api/medicamentos');
 
   const [vivienda, setVivienda] = useState({
     direccion: '', tipo: '', tenencia: '', materialConstruccion: '',
@@ -87,6 +558,7 @@ export default function CensarPage() {
     discapacidad: false, tipoDiscapacidad: '', enfermedad: '',
     embarazada: false, lactancia: false,
     esVotante: false, votaEnEscuela: false, centroVotacion: '',
+    registrosSalud: [] as any[],
   });
 
   const [miembros, setMiembros] = useState<MiembroForm[]>([]);
@@ -210,6 +682,7 @@ export default function CensarPage() {
                 esVotante: j.esVotante || false,
                 votaEnEscuela: j.votaEnEscuela || false,
                 centroVotacion: j.centroVotacion || '',
+                registrosSalud: j.registrosSalud || [],
               });
             }
             
@@ -233,6 +706,7 @@ export default function CensarPage() {
               esVotante: m.esVotante || false,
               votaEnEscuela: m.votaEnEscuela || false,
               centroVotacion: m.centroVotacion || '',
+              registrosSalud: m.registrosSalud || [],
             }));
             setMiembros(mList);
           }
@@ -329,6 +803,16 @@ export default function CensarPage() {
         esVotante: jefe.esVotante,
         votaEnEscuela: jefe.votaEnEscuela,
         centroVotacion: jefe.centroVotacion || null,
+        registrosSalud: (jefe.registrosSalud || []).map((r: any) => ({
+          enfermedadId: r.enfermedadId,
+          medicamentoId: r.medicamentoId || null,
+          dosis: r.dosis || null,
+          frecuencia: r.frecuencia || null,
+          cantidadMes: r.cantidadMes ? parseFloat(String(r.cantidadMes)) : null,
+          severidad: r.severidad || null,
+          observaciones: r.observaciones || null,
+          activo: r.activo !== undefined ? r.activo : true,
+        })),
       },
       miembros: miembros
         .filter((m) => m.nombre.trim() !== '')
@@ -351,6 +835,16 @@ export default function CensarPage() {
           esVotante: m.esVotante,
           votaEnEscuela: m.votaEnEscuela,
           centroVotacion: m.centroVotacion || null,
+          registrosSalud: (m.registrosSalud || []).map((r: any) => ({
+            enfermedadId: r.enfermedadId,
+            medicamentoId: r.medicamentoId || null,
+            dosis: r.dosis || null,
+            frecuencia: r.frecuencia || null,
+            cantidadMes: r.cantidadMes ? parseFloat(String(r.cantidadMes)) : null,
+            severidad: r.severidad || null,
+            observaciones: r.observaciones || null,
+            activo: r.activo !== undefined ? r.activo : true,
+          })),
         })),
     };
   };
@@ -780,6 +1274,15 @@ export default function CensarPage() {
                 className="input-field" placeholder="Tipo de discapacidad" />
             </div>
           )}
+          
+          <HealthRecordsSection
+            registros={jefe.registrosSalud || []}
+            onChange={(updated) => setJefe({ ...jefe, registrosSalud: updated })}
+            catalogEnfermedades={catalogEnfermedades}
+            catalogMedicamentos={catalogMedicamentos}
+            onMutateEnfermedades={mutateEnfermedades}
+            onMutateMedicamentos={mutateMedicamentos}
+          />
           </div>
 
           <div className="glass-card p-5 sm:p-6">
@@ -922,6 +1425,15 @@ export default function CensarPage() {
                         </div>
                       </div>
                     )}
+
+                    <HealthRecordsSection
+                      registros={m.registrosSalud || []}
+                      onChange={(updated) => updateMiembro(i, 'registrosSalud', updated)}
+                      catalogEnfermedades={catalogEnfermedades}
+                      catalogMedicamentos={catalogMedicamentos}
+                      onMutateEnfermedades={mutateEnfermedades}
+                      onMutateMedicamentos={mutateMedicamentos}
+                    />
                   </div>
                 ))}
               </div>
