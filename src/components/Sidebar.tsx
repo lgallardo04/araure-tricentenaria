@@ -11,7 +11,7 @@ import { usePathname } from 'next/navigation';
 import useSWR from 'swr';
 import { useState } from 'react';
 import {
-  FiHome, FiUsers, FiMap, FiMapPin, FiBarChart2,
+  FiHome, FiUsers, FiUser, FiMap, FiMapPin, FiBarChart2,
   FiChevronDown, FiChevronRight, FiX, FiShield, FiClipboard, FiSettings, FiCheckSquare
 } from 'react-icons/fi';
 
@@ -143,6 +143,10 @@ export default function Sidebar({ isOpen, onClose, onSelectComunidad }: SidebarP
               <Link href="/dashboard/reportes" className={`sidebar-link ${isActive('/dashboard/reportes') ? 'active' : ''}`} onClick={onClose}>
                 <FiBarChart2 className="w-5 h-5" /><span>Reportes</span>
               </Link>
+
+              <Link href="/dashboard/perfil" className={`sidebar-link ${isActive('/dashboard/perfil') ? 'active' : ''}`} onClick={onClose}>
+                <FiUser className="w-5 h-5 text-blue-400" /><span>Mi Perfil</span>
+              </Link>
             </>
           )}
 
@@ -174,6 +178,10 @@ export default function Sidebar({ isOpen, onClose, onSelectComunidad }: SidebarP
               <Link href="/dashboard/reportes" className={`sidebar-link ${isActive('/dashboard/reportes') ? 'active' : ''}`} onClick={onClose}>
                 <FiBarChart2 className="w-5 h-5" /><span>Reportes</span>
               </Link>
+
+              <Link href="/dashboard/perfil" className={`sidebar-link ${isActive('/dashboard/perfil') ? 'active' : ''}`} onClick={onClose}>
+                <FiUser className="w-5 h-5 text-blue-400" /><span>Mi Perfil</span>
+              </Link>
             </>
           )}
 
@@ -194,6 +202,10 @@ export default function Sidebar({ isOpen, onClose, onSelectComunidad }: SidebarP
 
               <Link href="/mi-calle/familias" className={`sidebar-link ${isActive('/mi-calle/familias') ? 'active' : ''}`} onClick={onClose}>
                 <FiUsers className="w-5 h-5" /><span>Mis Familias</span>
+              </Link>
+
+              <Link href="/mi-calle/perfil" className={`sidebar-link ${isActive('/mi-calle/perfil') ? 'active' : ''}`} onClick={onClose}>
+                <FiUser className="w-5 h-5 text-blue-400" /><span>Mi Perfil</span>
               </Link>
             </>
           )}

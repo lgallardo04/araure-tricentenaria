@@ -23,10 +23,10 @@ async function main() {
   await prisma.comunidad.deleteMany();
   console.log('🗑️  Base de datos limpia');
 
-  // --- Crear usuario Administrador ---
+  // --- Crear usuarios Administradores (3 en total) ---
   const adminPassword = await bcrypt.hash('admin123', 10);
-  const admin = await prisma.user.create({
-    data: {
+  const admins = [
+    {
       name: 'Administrador Principal',
       email: 'admin@comuna.com',
       password: adminPassword,
@@ -34,8 +34,30 @@ async function main() {
       phone: '0414-0000000',
       cedula: 'V-12345678',
     },
-  });
-  console.log('✅ Admin creado:', admin.email);
+    {
+      name: 'Administrador Auxiliar 1',
+      email: 'admin2@comuna.com',
+      password: adminPassword,
+      role: UserRole.ADMIN,
+      phone: '0414-0000002',
+      cedula: 'V-12345679',
+    },
+    {
+      name: 'Administrador Auxiliar 2',
+      email: 'admin3@comuna.com',
+      password: adminPassword,
+      role: UserRole.ADMIN,
+      phone: '0414-0000003',
+      cedula: 'V-12345680',
+    },
+  ];
+
+  for (const adminData of admins) {
+    const admin = await prisma.user.create({
+      data: adminData,
+    });
+    console.log('✅ Admin creado:', admin.email);
+  }
 
   // --- Crear Comunidades ---
   const comunidadesData = [

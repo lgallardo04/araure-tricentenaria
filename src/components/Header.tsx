@@ -8,6 +8,7 @@
 import { useSession, signOut } from 'next-auth/react';
 import { FiMenu, FiLogOut, FiUser, FiChevronDown } from 'react-icons/fi';
 import { useState } from 'react';
+import Link from 'next/link';
 
 interface HeaderProps {
   title: string;
@@ -31,6 +32,7 @@ export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
   const { data: session } = useSession();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const role = session?.user?.role ?? 'JEFE_CALLE';
+  const profileUrl = role === 'JEFE_CALLE' ? '/mi-calle/perfil' : '/dashboard/perfil';
 
   return (
     <header className="sticky top-0 z-30 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800">
@@ -80,6 +82,14 @@ export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
                   <p className="text-sm font-medium text-slate-200">{session?.user?.name}</p>
                   <p className="text-xs text-slate-500">{roleLabels[role]}</p>
                 </div>
+                <Link
+                  href={profileUrl}
+                  onClick={() => setShowUserMenu(false)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded-lg transition-colors mb-1"
+                >
+                  <FiUser className="w-4 h-4 text-blue-400" />
+                  Mi Perfil
+                </Link>
                 <button
                   onClick={() => signOut({ callbackUrl: '/login' })}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"

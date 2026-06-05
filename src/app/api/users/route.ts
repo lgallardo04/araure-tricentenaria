@@ -165,6 +165,27 @@ export async function PUT(req: NextRequest) {
     }
     const { id, name, email, password, phone, cedula, active, role, comunidadId, calleId } = parsed.data;
 
+    // Obtener el rol actual del usuario a modificar
+    const targetUser = await prisma.user.findUnique({
+      where: { id },
+      select: { role: true },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+    }
+
+    // Impedir modificar a otros administradores (solo se pueden editar a sí mismos)
+    const isTargetAdmin = targetUser.role === 'ADMIN';
+    const isChangingToAdmin = role === 'ADMIN';
+
+    if ((isTargetAdmin || isChangingToAdmin) && id !== session.user.id) {
+      return NextResponse.json(
+        { error: 'No autorizado: Un administrador no puede modificar la cuenta de otro administrador' },
+        { status: 403 }
+      );
+    }
+
     // No permitir que el admin se desactive a sí mismo
     if (id === session.user.id && active === false) {
       return NextResponse.json({ error: 'No puede desactivar su propia cuenta' }, { status: 400 });
@@ -239,6 +260,23 @@ export async function DELETE(req: NextRequest) {
     // No permitir que el admin se elimine a sí mismo
     if (id === session.user.id) {
       return NextResponse.json({ error: 'No puede eliminar su propia cuenta' }, { status: 400 });
+    }
+
+    // Obtener el rol actual del usuario a eliminar
+    const targetUser = await prisma.user.findUnique({
+      where: { id },
+      select: { role: true },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+    }
+
+    if (targetUser.role === 'ADMIN') {
+      return NextResponse.json(
+        { error: 'No autorizado: No se pueden eliminar cuentas de administrador' },
+        { status: 403 }
+      );
     }
 
     await prisma.user.delete({ where: { id } });
