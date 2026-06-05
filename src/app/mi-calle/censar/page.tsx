@@ -539,6 +539,7 @@ export default function CensarPage() {
   const [vivienda, setVivienda] = useState({
     direccion: '', tipo: '', tenencia: '', materialConstruccion: '',
     cantidadHabitaciones: '', cantidadBanos: '', observaciones: '',
+    telefonoFijo: '',
   });
 
   const [servicios, setServicios] = useState({
@@ -637,6 +638,7 @@ export default function CensarPage() {
               cantidadHabitaciones: data.vivienda.cantidadHabitaciones?.toString() || '',
               cantidadBanos: data.vivienda.cantidadBanos?.toString() || '',
               observaciones: data.vivienda.observaciones || '',
+              telefonoFijo: data.vivienda.telefonoFijo || '',
             });
             
             const newServicios = { AGUA: '', ELECTRICIDAD: '', GAS: '', INTERNET: '', ASEO: '', TELEFONO: '' };
@@ -773,6 +775,7 @@ export default function CensarPage() {
         cantidadHabitaciones: vivienda.cantidadHabitaciones || null,
         cantidadBanos: vivienda.cantidadBanos || null,
         observaciones: vivienda.observaciones || null,
+        telefonoFijo: vivienda.telefonoFijo || null,
       },
       servicios: serviciosArr,
       programaSocial: {
@@ -892,7 +895,7 @@ export default function CensarPage() {
   const opcionesGas = ['Directo', 'Bombona', 'Leña', 'No tiene'];
   const opcionesSiNo = ['Sí', 'No'];
   const opcionesAseo = ['Sí', 'No', 'Irregular'];
-  const opcionesTelefono = ['Fijo', 'Solo Celular', 'No tiene'];
+  const opcionesTelefono = ['Fijo', 'Solo Celular', 'Ambos', 'No tiene'];
   const estadosCiviles = ['Soltero/a', 'Casado/a', 'Concubino/a', 'Divorciado/a', 'Viudo/a'];
   const escolaridades = ['Ninguna', 'Preescolar', 'Primaria', 'Secundaria', 'Bachillerato', 'Técnico Superior', 'Universitaria', 'Postgrado'];
   const parentescos = ['Esposo/a', 'Hijo/a', 'Nieto/a', 'Padre/Madre', 'Hermano/a', 'Abuelo/a', 'Tío/a', 'Sobrino/a', 'Primo/a', 'Cuñado/a', 'Suegro/a', 'Yerno/Nuera', 'Otro'];
@@ -1058,6 +1061,13 @@ export default function CensarPage() {
                   <option value="">Seleccionar...</option>
                   {opcionesTelefono.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
+                {(servicios.TELEFONO === 'Fijo' || servicios.TELEFONO === 'Ambos') && (
+                  <div className="mt-3">
+                    <Opt>Teléfono de la Casa (Fijo)</Opt>
+                    <input value={vivienda.telefonoFijo || ''} onChange={(e) => setVivienda({ ...vivienda, telefonoFijo: e.target.value })}
+                      className="input-field text-sm" placeholder="Ej: 0255-1234567" />
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -100,6 +100,7 @@ model Vivienda {
   cantidadBanos        Int?
   observaciones        String?
   activo               Boolean            @default(true)
+  telefonoFijo         String?
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 

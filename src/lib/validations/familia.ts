@@ -55,6 +55,7 @@ export const viviendaSchema = z.object({
   cantidadHabitaciones: z.union([z.string(), z.number(), z.null()]).optional(),
   cantidadBanos: z.union([z.string(), z.number(), z.null()]).optional(),
   observaciones: optStr,
+  telefonoFijo: optStr,
 });
 
 // ─── Servicio de vivienda ────────────────────────────────────

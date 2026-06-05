@@ -207,6 +207,7 @@ export async function POST(req: NextRequest) {
             ? parseInt(String(vivienda.cantidadBanos), 10)
             : null,
           observaciones: vivienda.observaciones || null,
+          telefonoFijo: vivienda.telefonoFijo || null,
         },
       });
 
@@ -415,6 +416,7 @@ export async function PUT(req: NextRequest) {
                 ? vivienda.cantidadBanos ? parseInt(String(vivienda.cantidadBanos), 10) : null
                 : undefined,
               observaciones: vivienda.observaciones ?? undefined,
+              ...(vivienda.telefonoFijo !== undefined ? { telefonoFijo: vivienda.telefonoFijo || null } : {}),
             },
           });
         } else {
@@ -437,6 +439,7 @@ export async function PUT(req: NextRequest) {
               cantidadBanos: vivienda.cantidadBanos
                 ? parseInt(String(vivienda.cantidadBanos), 10) : null,
               observaciones: vivienda.observaciones || null,
+              telefonoFijo: vivienda.telefonoFijo || null,
             },
           });
 
