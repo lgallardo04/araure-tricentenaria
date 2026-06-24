@@ -2,6 +2,7 @@
 // API: Demografía — Normalizado
 // Usa tabla Persona unificada, sin duplicación jefe/miembros
 // Optimizado: fechaNacimiento como DateTime para cálculos nativos
+// Soporta filtros de rango de edad (edadMin, edadMax)
 // =============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -69,7 +70,11 @@ export async function GET(req: NextRequest) {
     const calleId = searchParams.get('calleId');
     const comunidadId = searchParams.get('comunidadId');
     const list = searchParams.get('list') === 'true';
-    const grupo = searchParams.get('grupo'); // ninos, adol, adult, abuelos
+    const grupo = searchParams.get('grupo'); // ninos, adol, adult, abuelos, custom
+    const edadMinParam = searchParams.get('edadMin');
+    const edadMaxParam = searchParams.get('edadMax');
+    const edadMin = edadMinParam !== null ? parseInt(edadMinParam, 10) : null;
+    const edadMax = edadMaxParam !== null ? parseInt(edadMaxParam, 10) : null;
     const role = session.user.role;
     const userComunidadId = session.user.comunidadId;
 
@@ -121,26 +126,54 @@ export async function GET(req: NextRequest) {
 
     if (list) {
       const personasList: any[] = [];
+
       for (const familia of familias) {
+        // Obtener cédula del jefe de familia para usarla como "cédula parental" en menores
+        const jefe = familia.personas.find((p) => p.esJefe);
+        const cedulaJefe = jefe?.cedula ?? null;
+
         for (const persona of familia.personas) {
           const edad = calcularEdad(persona.fechaNacimiento);
+          if (edad === null) continue;
+
           let match = false;
-          if (grupo === 'ninos' && edad !== null && edad < 12) match = true;
-          else if (grupo === 'adol' && edad !== null && edad >= 12 && edad < 18) match = true;
-          else if (grupo === 'adult' && edad !== null && edad >= 18 && edad < 60) match = true;
-          else if (grupo === 'abuelos' && edad !== null && edad >= 60) match = true;
+          // Filtro por rango de edad personalizado
+          if (edadMin !== null && edadMax !== null) {
+            match = edad >= edadMin && edad <= edadMax;
+          } else if (edadMin !== null) {
+            match = edad >= edadMin;
+          } else if (edadMax !== null) {
+            match = edad <= edadMax;
+          }
+          // Filtro por grupo predefinido
+          else if (grupo === 'ninos') match = edad < 12;
+          else if (grupo === 'adol') match = edad >= 12 && edad < 18;
+          else if (grupo === 'adult') match = edad >= 18 && edad < 60;
+          else if (grupo === 'abuelos') match = edad >= 60;
           else if (!grupo) match = true;
 
           if (match) {
+            const esMenor = edad < 18;
             personasList.push({
-              ...persona,
+              id: persona.id,
+              nombre: persona.nombre,
+              cedula: persona.cedula,
+              cedulaParental: esMenor ? cedulaJefe : null,
+              esMenor,
               edad,
+              genero: persona.genero,
+              parentesco: persona.parentesco,
+              esJefe: persona.esJefe,
               calle: familia.calle.nombre,
-              comunidad: familia.calle.comunidad.nombre.replace('Consejo Comunal ', '')
+              comunidad: familia.calle.comunidad.nombre.replace('Consejo Comunal ', ''),
             });
           }
         }
       }
+
+      // Ordenar por nombre
+      personasList.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
       return NextResponse.json(personasList);
     }
 
