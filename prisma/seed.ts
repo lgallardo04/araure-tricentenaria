@@ -28,7 +28,7 @@ async function main() {
   const admins = [
     {
       name: 'Administrador Principal',
-      email: 'admin@comuna.com',
+      email: 'Ajimenezm08@gmail.com',
       password: adminPassword,
       role: UserRole.ADMIN,
       phone: '0414-0000000',
@@ -154,7 +154,7 @@ async function main() {
 
   console.log('\n🎉 Seed completado exitosamente!');
   console.log('\n📋 Credenciales:');
-  console.log('   Admin:              admin@comuna.com / admin123');
+  console.log('   Admin:              Ajimenezm08@gmail.com / admin123');
   console.log('   Jefes de Comunidad: maria.gonzalez@comuna.com / jefe123 (y otros 7)');
   console.log('   Jefes de Calle:     juan.perez@comuna.com / jefe123 (y otros 5)');
 }

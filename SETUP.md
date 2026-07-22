@@ -82,7 +82,7 @@ npm run public
 
 | Rol | Email | Contraseña |
 |-----|-------|------------|
-| Administrador | `admin@comuna.com` | `admin123` |
+| Administrador | `Ajimenezm08@gmail.com` | `admin123` |
 | Jefe de Comunidad | `maria.gonzalez@comuna.com` | `jefe123` |
 | Jefe de Calle | `juan.perez@comuna.com` | `jefe123` |
 
