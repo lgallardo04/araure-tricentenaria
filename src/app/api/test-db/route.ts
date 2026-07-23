@@ -12,7 +12,7 @@ export async function GET() {
     
     // Also try to fetch the admin user to verify email
     const admin = await prisma.user.findFirst({
-      where: { email: 'Ajimenezm08@gmail.com' }
+      where: { email: 'ajimenezm08@gmail.com' }
     });
     
     return NextResponse.json({

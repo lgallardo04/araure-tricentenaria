@@ -23,8 +23,9 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
+          const emailClean = credentials.email.toLowerCase().trim();
           const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
+            where: { email: emailClean },
           });
 
           if (!user) {
